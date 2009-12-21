@@ -32,15 +32,15 @@ development = "dragongoserver.sourceforge.net"
 production  = "www.dragongoserver.net"
 -- }}}
 -- login {{{
-data Result
+data LoginResult
     = UnsuccessfulResponse (Response String)
     | WrongUsername
     | WrongPassword
-    | OtherProblem String
-    | Success
+    | LoginProblem String
+    | LoginSuccess
     deriving Show
 
-login :: String -> String -> String -> DGS Result
+login :: String -> String -> String -> DGS LoginResult
 login server username password = fmap munge (post loc opts) where
     loc  = uri server "login.php"
     opts = [("quick_mode", "1"), ("userid", username), ("passwd", password)]
@@ -49,10 +49,11 @@ login server username password = fmap munge (post loc opts) where
         (2, 0, 0) -> resultFromString . rspBody $ rsp
         _         -> UnsuccessfulResponse       $ rsp
 
-    resultFromString "#Error: wrong_userid\n"   = WrongUsername
-    resultFromString "#Error: wrong_password\n" = WrongPassword
-    resultFromString "\nOk"                     = Success
-    resultFromString s                          = OtherProblem s
+    resultFromString s = case s of
+        "#Error: wrong_userid\n"   -> WrongUsername
+        "#Error: wrong_password\n" -> WrongPassword
+        "\nOk"                     -> LoginSuccess
+        _                          -> LoginProblem s
 -- }}}
 -- status {{{
 -- (gid, uid, black?, date, time remaining)
@@ -83,4 +84,34 @@ statusUser :: String -> String  -> DGS [Game]
 status     server      = valueOf statusFromString         $ get  (uri server "quick_status.php")
 statusUID  server uid  = valueOf (snd . statusFromString) $ post (uri server "quick_status.php") [("uid", show uid)]
 statusUser server user = valueOf (snd . statusFromString) $ post (uri server "quick_status.php") [("user", user)]
+-- }}}
+-- play {{{
+type Point = (Integer, Integer)
+
+data MoveResult
+    = NotLoggedIn
+    | NoGameNumber
+    | DatabaseCorrupted -- wrong gid
+    | NotYourTurn -- you're not playing in the game, you claimed to be the wrong color
+    | MoveAlreadyPlayed -- specified wrong previous move
+    | IllegalPosition -- ko, playing on top of another stone, playing off the board
+    | MoveProblem String
+    | MoveSuccess
+
+move :: String -> Integer -> Bool -> Point -> Point -> DGS MoveResult
+move server gid black old new = valueOf resultFromString $ post loc opts where
+    loc  = uri server "quick_play.php"
+    opts = [("gid", show gid), ("color", if black then "B" else "W"), ("sgf_prev", point old), ("sgf_move", point new)]
+    point (x, y) = [pos x, pos y]
+    pos   i      = toEnum (fromEnum 'a' + fromEnum i)
+
+    resultFromString s | "#Error: " `isPrefixOf` s = case drop 8 s of
+        "not_logged_in\n"       -> NotLoggedIn
+        "no_game_nr\n"          -> NoGameNumber
+        "database_corrupted\n"  -> DatabaseCorrupted
+        "not_your_turn\n"       -> NotYourTurn
+        "already_played\n"      -> MoveAlreadyPlayed
+        "illegal_position\n"    -> IllegalPosition
+    resultFromString "\nOk" = MoveSuccess
+    resultFromString s      = MoveProblem s
 -- }}}
