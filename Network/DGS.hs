@@ -15,14 +15,8 @@ uri server path = full where
     auth = URIAuth { uriRegName = server, uriUserInfo = "", uriPort = "" }
     full = nullURI { uriScheme = "http:", uriAuthority = Just auth, uriPath = '/' : path }
 
-post :: URI -> [(String, String)] -> DGS (Response String)
-post uri = fmap snd . request . formToRequest . Form POST uri
-
-get :: URI -> DGS (Response String)
-get = fmap snd . request . defaultGETRequest
-
-valueOf :: (String -> a) -> DGS (Response String) -> DGS a
-valueOf f = fmap (f . rspBody)
+get :: (String -> a) -> URI -> [(String, String)] -> DGS a
+get f uri = fmap (f . rspBody . snd) . request . formToRequest . Form GET uri
 
 silence :: DGS ()
 silence = setErrHandler quiet >> setOutHandler quiet where quiet _ = return ()
@@ -33,21 +27,16 @@ production  = "www.dragongoserver.net"
 -- }}}
 -- login {{{
 data LoginResult
-    = UnsuccessfulResponse (Response String)
-    | WrongUsername
+    = WrongUsername
     | WrongPassword
     | LoginProblem String
     | LoginSuccess
-    deriving Show
+    deriving (Eq, Ord, Show, Read)
 
 login :: String -> String -> String -> DGS LoginResult
-login server username password = fmap munge (post loc opts) where
+login server username password = get resultFromString loc opts where
     loc  = uri server "login.php"
     opts = [("quick_mode", "1"), ("userid", username), ("passwd", password)]
-
-    munge rsp = case rspCode rsp of
-        (2, 0, 0) -> resultFromString . rspBody $ rsp
-        _         -> UnsuccessfulResponse       $ rsp
 
     resultFromString s = case s of
         "#Error: wrong_userid\n"   -> WrongUsername
@@ -81,9 +70,9 @@ status     :: String            -> DGS ([Message], [Game])
 statusUID  :: String -> Integer -> DGS [Game]
 statusUser :: String -> String  -> DGS [Game]
 
-status     server      = valueOf statusFromString         $ get  (uri server "quick_status.php")
-statusUID  server uid  = valueOf (snd . statusFromString) $ post (uri server "quick_status.php") [("uid", show uid)]
-statusUser server user = valueOf (snd . statusFromString) $ post (uri server "quick_status.php") [("user", user)]
+status     server      = get        statusFromString  (uri server "quick_status.php") []
+statusUID  server uid  = get (snd . statusFromString) (uri server "quick_status.php") [("uid", show uid)]
+statusUser server user = get (snd . statusFromString) (uri server "quick_status.php") [("user", user)]
 -- }}}
 -- play {{{
 type Point = (Integer, Integer)
@@ -97,11 +86,13 @@ data MoveResult
     | IllegalPosition -- ko, playing on top of another stone, playing off the board
     | MoveProblem String
     | MoveSuccess
+    deriving (Eq, Ord, Show, Read)
 
 move :: String -> Integer -> Bool -> Point -> Point -> DGS MoveResult
-move server gid black old new = valueOf resultFromString $ post loc opts where
+move server gid black old new = get resultFromString loc opts where
     loc  = uri server "quick_play.php"
-    opts = [("gid", show gid), ("color", if black then "B" else "W"), ("sgf_prev", point old), ("sgf_move", point new)]
+    opts = [("gid", show gid), ("color", col), ("sgf_prev", point old), ("sgf_move", point new)]
+    col  = if black then "B" else "W"
     point (x, y) = [pos x, pos y]
     pos   i      = toEnum (fromEnum 'a' + fromEnum i)
 
@@ -114,4 +105,9 @@ move server gid black old new = valueOf resultFromString $ post loc opts where
         "illegal_position\n"    -> IllegalPosition
     resultFromString "\nOk" = MoveSuccess
     resultFromString s      = MoveProblem s
+-- }}}
+-- sgf {{{
+sgf :: String -> Integer -> Bool -> DGS String
+sgf server gid comments = get id (uri server "sgf.php") opts where
+    opts = [("gid", show gid), ("owned_comments", show . fromEnum $ comments)]
 -- }}}
