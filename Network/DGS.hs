@@ -54,6 +54,8 @@ module Network.DGS (
     browseDGS
 ) where
 
+-- TODO: remove this imports when the instance is available from the HTTP package
+import Control.Monad.Trans
 import Data.List
 import Data.List.Split
 import Network.Browser
@@ -62,7 +64,10 @@ import Network.URI
 -- }}}
 -- helpers {{{
 -- | a convenient type synonym for HTTP's browser monad
-newtype DGS a = DGS { runDGS :: BrowserAction (HandleStream String) a } deriving (Functor, Monad)
+newtype DGS a = DGS { runDGS :: BrowserAction (HandleStream String) a } deriving (Functor, Monad, MonadIO)
+
+-- TODO: port this upstream to the HTTP package
+instance MonadIO (BrowserAction conn) where liftIO = ioAction
 
 uri :: String -> String -> URI
 uri server path = full where
