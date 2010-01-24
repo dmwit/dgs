@@ -7,24 +7,26 @@ much error-checking on the things Dragon sends back.  Use with caution.
 
 Here are some sample interactions from ghci, with a fictitious password:
 
-> *Network.DGS> browse (silence >> login development "smartypants" "password")
+> *Network.DGS> browseDGS (silence >> login development "smartypants" "password")
 > LoginSuccess
-> *Network.DGS> browse (silence >> statusUID production 4155) >>= mapM_ print
+> *Network.DGS> browseDGS (silence >> statusUID production 4155) >>= mapM_ print
 > (453881,"jedge42",False,"2009-12-21 03:14 GMT","F: 30d 1h")
 > (532927,"bartnix",False,"2009-12-20 06:06 GMT","F: 21d 13h")
-> *Network.DGS> browse (silence >> statusUser production "dmwit") >>= mapM_ print
+> *Network.DGS> browseDGS (silence >> statusUser production "dmwit") >>= mapM_ print
 > (453881,"jedge42",False,"2009-12-21 03:14 GMT","F: 30d 1h")
 > (532927,"bartnix",False,"2009-12-20 06:06 GMT","F: 21d 13h")
 > *Network.DGS> :{
-> *Network.DGS| browse $ do {
+> *Network.DGS| browseDGS $ do {
 > *Network.DGS|   silence;
 > *Network.DGS|   login development "smartypants" "password";
-> *Network.DGS|   (_, [(gid, _, black, _, _)]) <- status development;
+> *Network.DGS|   (_, (gid, _, black, _, _):_) <- status development;
 > *Network.DGS|   move development gid black (16, 18) (17, 16)
 > *Network.DGS|   }
 > *Network.DGS| :}
 > MoveSuccess
 -}
+
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Network.DGS (
     -- * Logging in
     LoginResult(..),
@@ -45,10 +47,11 @@ module Network.DGS (
 
     -- * Miscellaneous
     module Network.Browser,
-    DGS,
+    DGS(..),
     development,
     production,
-    silence
+    silence,
+    browseDGS
 ) where
 
 import Data.List
@@ -59,7 +62,7 @@ import Network.URI
 -- }}}
 -- helpers {{{
 -- | a convenient type synonym for HTTP's browser monad
-type DGS a = BrowserAction (HandleStream String) a
+newtype DGS a = DGS { runDGS :: BrowserAction (HandleStream String) a } deriving (Functor, Monad)
 
 uri :: String -> String -> URI
 uri server path = full where
@@ -67,12 +70,15 @@ uri server path = full where
     full = nullURI { uriScheme = "http:", uriAuthority = Just auth, uriPath = '/' : path }
 
 get :: (String -> a) -> URI -> [(String, String)] -> DGS a
-get f uri = fmap (f . rspBody . snd) . request . formToRequest . Form GET uri
+get f uri = DGS . fmap (f . rspBody . snd) . request . formToRequest . Form GET uri
 
 -- | by default, HTTP's browser chatters a lot on stdout; this action turns off
 -- the chatter
 silence :: DGS ()
-silence = setErrHandler quiet >> setOutHandler quiet where quiet _ = return ()
+silence = DGS $ setErrHandler quiet >> setOutHandler quiet where quiet _ = return ()
+
+browseDGS :: DGS a -> IO a
+browseDGS = browse . runDGS
 -- }}}
 -- servers {{{
 -- | the address of the development server, @\"dragongoserver.sourceforge.net\"@
