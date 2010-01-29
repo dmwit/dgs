@@ -7,16 +7,16 @@ much error-checking on the things Dragon sends back.  Use with caution.
 
 Here are some sample interactions from ghci, with a fictitious password:
 
-> *Network.DGS> browseDGS (silence >> login development "smartypants" "password")
+> *Network.DGS> browse (silence >> login development "smartypants" "password")
 > LoginSuccess
-> *Network.DGS> browseDGS (silence >> statusUID production 4155) >>= mapM_ print
+> *Network.DGS> browse (silence >> statusUID production 4155) >>= mapM_ print
 > (453881,"jedge42",False,"2009-12-21 03:14 GMT","F: 30d 1h")
 > (532927,"bartnix",False,"2009-12-20 06:06 GMT","F: 21d 13h")
-> *Network.DGS> browseDGS (silence >> statusUser production "dmwit") >>= mapM_ print
+> *Network.DGS> browse (silence >> statusUser production "dmwit") >>= mapM_ print
 > (453881,"jedge42",False,"2009-12-21 03:14 GMT","F: 30d 1h")
 > (532927,"bartnix",False,"2009-12-20 06:06 GMT","F: 21d 13h")
 > *Network.DGS> :{
-> *Network.DGS| browseDGS $ do {
+> *Network.DGS| browse $ do {
 > *Network.DGS|   silence;
 > *Network.DGS|   login development "smartypants" "password";
 > *Network.DGS|   (_, (gid, _, black, _, _):_) <- status development;
@@ -51,16 +51,17 @@ module Network.DGS (
     development,
     production,
     silence,
-    browseDGS
+    browse
 ) where
 
 -- TODO: remove this imports when the instance is available from the HTTP package
 import Control.Monad.Trans
 import Data.List
 import Data.List.Split
-import Network.Browser
+import Network.Browser hiding (browse)
 import Network.HTTP
 import Network.URI
+import qualified Network.Browser as B
 -- }}}
 -- helpers {{{
 -- | a convenient type synonym for HTTP's browser monad
@@ -82,8 +83,8 @@ get f uri = DGS . fmap (f . rspBody . snd) . request . formToRequest . Form GET 
 silence :: DGS ()
 silence = DGS $ setErrHandler quiet >> setOutHandler quiet where quiet _ = return ()
 
-browseDGS :: DGS a -> IO a
-browseDGS = browse . runDGS
+browse :: DGS a -> IO a
+browse = B.browse . runDGS
 -- }}}
 -- servers {{{
 -- | the address of the development server, @\"dragongoserver.sourceforge.net\"@
