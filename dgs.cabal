@@ -32,4 +32,4 @@ source-repository head
 source-repository this
     type:       git
     location:   http://www.dmwit.com/dgs/.git
-    tag:        0.1
+    tag:        0.2
