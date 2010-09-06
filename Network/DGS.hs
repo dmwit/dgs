@@ -119,8 +119,12 @@ login server username password = get resultFromString loc opts where
         _                          -> LoginProblem s
 -- }}}
 -- status {{{
--- | (game ID, username of the opponent, current player is black?, date, time remaining)
-type Game    = (Integer, String, Bool, String, String)
+-- | (game ID, username of the opponent, current player is black?, date, time
+--   remaining, move #, TID (dunno what this is))
+--
+--   The final two are Maybe's; this is because old versions of DGS (e.g. the
+--   current production server) do not provide these values.
+type Game    = (Integer, String, Bool, String, String, Maybe Integer, Maybe Integer)
 -- | (message ID, username of the sender, subject, date)
 type Message = (Integer, String, String, String)
 
@@ -132,7 +136,8 @@ messageFromString :: String -> Message
 statusFromString  :: String -> ([Message], [Game])
 
 gameFromString s = case sepBy ", " s of
-    ["'G'", gid, uid, color, date, time] -> (read gid, strip uid, color == "'B'", strip date, strip time)
+    ["'G'", gid, uid, color, date, time]             -> (read gid, strip uid, color == "'B'", strip date, strip time, Nothing, Nothing)
+    ["'G'", gid, uid, color, date, time, moves, tid] -> (read gid, strip uid, color == "'B'", strip date, strip time, Just (read moves), Just (read tid))
 messageFromString s = case sepBy ", " s of
     ["'M'", mid, uid, subject, date] -> (read mid, strip uid, strip subject, strip date)
 statusFromString s = (messages, games) where
