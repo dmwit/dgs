@@ -26,65 +26,57 @@ Here are some sample interactions from ghci, with a fictitious password:
 > MoveSuccess
 -}
 
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Network.DGS (
     -- * Logging in
-    LoginResult(..),
     login,
 
     -- * Listing games and messages
-    Game,
-    Message,
     status,
     statusUID,
     statusUser,
 
     -- * Making a move
-    Point,
-    MoveResult(..),
     move,
     sgf,
 
     -- * Miscellaneous
     module Network.Browser,
-    DGS(..),
     development,
     production,
     silence,
     browseDGS
 ) where
 
--- TODO: remove this imports when the instance is available from the HTTP package
-import Control.Monad.Trans
 import Data.List
 import Data.List.Split
 import Network.Browser
+import Network.DGS.Game (Game(Game))
+import Network.DGS.Types (Color, DGS, GameBoard, LoginResult, Message, MoveResult, Point)
 import Network.HTTP
 import Network.URI
-import qualified Network.Browser as B
+import qualified Network.Browser   as B
+import qualified Network.DGS.Types as T
 -- }}}
 -- helpers {{{
--- | a convenient type synonym for HTTP's browser monad
-newtype DGS a = DGS { runDGS :: BrowserAction (HandleStream String) a } deriving (Functor, Monad, MonadIO)
-
--- TODO: port this upstream to the HTTP package
-instance MonadIO (BrowserAction conn) where liftIO = ioAction
-
 uri :: String -> String -> URI
 uri server path = full where
     auth = URIAuth { uriRegName = server, uriUserInfo = "", uriPort = "" }
     full = nullURI { uriScheme = "http:", uriAuthority = Just auth, uriPath = '/' : path }
 
-get :: (String -> a) -> URI -> [(String, String)] -> DGS a
-get f uri = DGS . fmap (f . rspBody . snd) . request . formToRequest . Form GET uri
+form :: RequestMethod -> (String -> a) -> URI -> [(String, String)] -> DGS a
+get  ::                  (String -> a) -> URI -> [(String, String)] -> DGS a
+post ::                  (String -> a) -> URI -> [(String, String)] -> DGS a
+form t f uri = T.DGS . fmap (f . rspBody . snd) . request . formToRequest . Form t uri
+get          = form GET
+post         = form POST
 
 -- | by default, HTTP's browser chatters a lot on stdout; this action turns off
 -- the chatter
 silence :: DGS ()
-silence = DGS $ setErrHandler quiet >> setOutHandler quiet where quiet _ = return ()
+silence = T.DGS $ setErrHandler quiet >> setOutHandler quiet where quiet _ = return ()
 
 browseDGS :: DGS a -> IO a
-browseDGS = B.browse . runDGS
+browseDGS = B.browse . T.runDGS
 -- }}}
 -- servers {{{
 -- | the address of the development server, @\"dragongoserver.sourceforge.net\"@
@@ -94,14 +86,8 @@ production  :: String
 development = "dragongoserver.sourceforge.net"
 production  = "www.dragongoserver.net"
 -- }}}
+-- via documented API {{{
 -- login {{{
-data LoginResult
-    = WrongUsername
-    | WrongPassword
-    | LoginProblem String -- ^ it's a bug in the library if one of these ever gets built
-    | LoginSuccess
-    deriving (Eq, Ord, Show, Read)
-
 -- | some commands either require you to be logged in, or will give additional
 -- information if you log in
 login :: String -- ^ server, e.g. 'development' or 'production'
@@ -113,21 +99,12 @@ login server username password = get resultFromString loc opts where
     opts = [("quick_mode", "1"), ("userid", username), ("passwd", password)]
 
     resultFromString s = case s of
-        "#Error: wrong_userid\n"   -> WrongUsername
-        "#Error: wrong_password\n" -> WrongPassword
-        "\nOk"                     -> LoginSuccess
-        _                          -> LoginProblem s
+        "#Error: wrong_userid\n"   -> T.WrongUsername
+        "#Error: wrong_password\n" -> T.WrongPassword
+        "\nOk"                     -> T.LoginSuccess
+        _                          -> T.LoginProblem s
 -- }}}
 -- status {{{
--- | (game ID, username of the opponent, current player is black?, date, time
---   remaining, move #, TID (dunno what this is))
---
---   The final two are Maybe's; this is because old versions of DGS (e.g. the
---   current production server) do not provide these values.
-type Game    = (Integer, String, Bool, String, String, Maybe Integer, Maybe Integer)
--- | (message ID, username of the sender, subject, date)
-type Message = (Integer, String, String, String)
-
 strip :: String -> String
 strip s = read . (\s -> '"' : s ++ "\"") . take (length s - 2) . drop 1 $ s
 
@@ -136,10 +113,10 @@ messageFromString :: String -> Message
 statusFromString  :: String -> ([Message], [Game])
 
 gameFromString s = case sepBy ", " s of
-    ["'G'", gid, uid, color, date, time]             -> (read gid, strip uid, color == "'B'", strip date, strip time, Nothing, Nothing)
-    ["'G'", gid, uid, color, date, time, moves, tid] -> (read gid, strip uid, color == "'B'", strip date, strip time, Just (read moves), Just (read tid))
+    ["'G'", gid, uid, color, date, time]             -> Game (read gid) (strip uid) (color == "'B'") (strip date) (strip time) Nothing Nothing
+    ["'G'", gid, uid, color, date, time, moves, tid] -> Game (read gid) (strip uid) (color == "'B'") (strip date) (strip time) (Just (read moves)) (Just (read tid))
 messageFromString s = case sepBy ", " s of
-    ["'M'", mid, uid, subject, date] -> (read mid, strip uid, strip subject, strip date)
+    ["'M'", mid, uid, subject, date] -> T.Message (read mid) (strip uid) (strip subject) (strip date)
 statusFromString s = (messages, games) where
     types c  = filter (isPrefixOf ('\'' : c : "', ")) (lines s)
     games    = map gameFromString    (types 'G')
@@ -165,23 +142,9 @@ statusUID  server uid  = get (snd . statusFromString) (uri server "quick_status.
 statusUser server user = get (snd . statusFromString) (uri server "quick_status.php") [("user", user)]
 -- }}}
 -- play {{{
--- | 0-indexed x/y coordinates that start at the top left
-type Point = (Integer, Integer)
-
-data MoveResult
-    = NotLoggedIn
-    | NoGameNumber
-    | DatabaseCorrupted     -- ^ or a bad game ID
-    | NotYourTurn           -- ^ or you're not playing in the game, or you claimed to be the wrong color
-    | MoveAlreadyPlayed     -- ^ or the previous move didn't match reality
-    | IllegalPosition       -- ^ ko, playing on top of another stone, playing off the board
-    | MoveProblem String    -- ^ it's a bug in the library if one of these ever gets built
-    | MoveSuccess
-    deriving (Eq, Ord, Show, Read)
-
 move :: String  -- ^ server
      -> Integer -- ^ game ID
-     -> Bool    -- ^ playing as black? (can use exactly the value you got from 'status')
+     -> Color   -- ^ playing as black? (can use exactly the value you got from 'status')
      -> Point   -- ^ the move the opponent just made
      -> Point   -- ^ your move
      -> DGS MoveResult
@@ -193,14 +156,14 @@ move server gid black old new = get resultFromString loc opts where
     pos   i      = toEnum (fromEnum 'a' + fromEnum i)
 
     resultFromString s | "#Error: " `isPrefixOf` s = case drop 8 s of
-        "not_logged_in\n"       -> NotLoggedIn
-        "no_game_nr\n"          -> NoGameNumber
-        "database_corrupted\n"  -> DatabaseCorrupted
-        "not_your_turn\n"       -> NotYourTurn
-        "already_played\n"      -> MoveAlreadyPlayed
-        "illegal_position\n"    -> IllegalPosition
-    resultFromString "\nOk" = MoveSuccess
-    resultFromString s      = MoveProblem s
+        "not_logged_in\n"       -> T.NotLoggedIn
+        "no_game_nr\n"          -> T.NoGameNumber
+        "database_corrupted\n"  -> T.DatabaseCorrupted
+        "not_your_turn\n"       -> T.NotYourTurn
+        "already_played\n"      -> T.MoveAlreadyPlayed
+        "illegal_position\n"    -> T.IllegalPosition
+    resultFromString "\nOk" = T.MoveSuccess
+    resultFromString s      = T.MoveProblem s
 -- }}}
 -- sgf {{{
 -- | you can only get private comments if you are logged in; if you are not
@@ -212,4 +175,17 @@ sgf :: String  -- ^ server
     -> DGS String
 sgf server gid comments = get id (uri server "sgf.php") opts where
     opts = [("gid", show gid), ("owned_comments", show . fromEnum $ comments)]
+-- }}}
+-- }}}
+-- via (undocumented) screen scraping {{{
+-- game notes {{{
+-- | set whether game notes are visible for a particular game; if you are not
+-- logged in, nothing happens
+noteVisibility :: String  -- ^ server
+               -> Integer -- ^ game ID
+               -> Bool    -- ^ set them to be visible?
+               -> DGS ()
+noteVisibility server gid visible = post (const ()) (uri server "game.php") opts where
+    opts = [("gid", show gid), ("hidenotes", if visible then "N" else "Y"), ("togglenotes", "Hide notes")]
+-- }}}
 -- }}}

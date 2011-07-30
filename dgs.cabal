@@ -17,13 +17,17 @@ cabal-version:      >= 1.6
 build-type:         Simple
 
 library
-    exposed-modules:    Network.DGS
+    exposed-modules:
+                    Network.DGS,
+                    Network.DGS.Game,
+                    Network.DGS.Types
 
-    build-depends:  base >=3 && < 4,
+    build-depends:  base >= 3 && < 5,
                     mtl >= 1.1,
                     HTTP,
                     network,
-                    split
+                    split,
+                    array
 
 source-repository head
     type:       git
@@ -32,4 +36,4 @@ source-repository head
 source-repository this
     type:       git
     location:   http://dmwit.com/dgs/.git
-    tag:        0.2
+    tag:        0.3
