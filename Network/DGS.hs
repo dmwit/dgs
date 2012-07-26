@@ -1,9 +1,9 @@
 -- boilerplate {{{
 {-|
-This is a quick and dirty interface to Dragon Go Server's robot interface, as
-outlined at <http://www.dragongoserver.net/faq.php?read=t&cat=215#Entry219>.
-It does almost no sanity-checking of things you send it, nor does it do very
-much error-checking on the things Dragon sends back.  Use with caution.
+TODO: update this introduction
+
+This is an interface to Dragon Go Server's robot interface, as outlined at
+<http://dragongoserver.cvs.sourceforge.net/viewvc/dragongoserver/DragonGoServer/specs/quick_suite.txt>.
 
 Here are some sample interactions from ghci, with a fictitious password:
 
@@ -87,8 +87,9 @@ production  = "www.dragongoserver.net"
 -- }}}
 -- via documented API {{{
 -- login {{{
--- | some commands either require you to be logged in, or will give additional
--- information if you log in
+-- | Almost all commands require you to be logged in. Logging in does not count
+-- against your quota; one side effect is that this will report success even if
+-- you have already exceeded your quota.
 login :: String -- ^ server, e.g. 'development' or 'production'
       -> String -- ^ user name
       -> String -- ^ password
