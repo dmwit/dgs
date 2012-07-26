@@ -18,7 +18,7 @@ type DGS' = RWST Manager () CookieJar (ResourceT IO)
 -- this code is really unreadable, but it was written by just following the
 -- types and applying the DGS/runDGS and StM/unStM isomorphisms as necessary
 instance MonadBaseControl IO DGS where
-	data StM DGS a = StM {-# UNPACK #-} !(StM DGS' a)
+	data StM DGS a = StM !(StM DGS' a)
 	liftBaseWith f = DGS (liftBaseWith (\g -> f (\(DGS m) -> StM <$> g m)))
 	restoreM (StM v) = DGS (restoreM v)
 
