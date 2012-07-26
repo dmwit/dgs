@@ -35,9 +35,9 @@ library
 
 source-repository head
     type:       git
-    location:   http://dmwit.com/dgs/.git
+    location:   https://github.com/dmwit/dgs.git
 
 source-repository this
     type:       git
-    location:   http://dmwit.com/dgs/.git
+    location:   https://github.com/dmwit/dgs.git
     tag:        0.3
