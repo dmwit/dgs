@@ -1,0 +1,2503 @@
+# Topic: Quick-Suite
+# Description: Alternative interface to DGS operations
+# FAQ (robot-interface): http://www.dragongoserver.net/faq.php?read=t&cat=215#Entry219
+# Forum-discussions:
+# - http://www.dragongoserver.net/forum/read.php?forum=10&thread=27755
+# Author: Jens-Uwe Gaspar, DGS 'juga'
+
+## /*
+## Dragon Go Server
+## Copyright (C) 2001-2012  Erik Ouchterlony, Jens-Uwe Gaspar
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU Affero General Public License as
+## published by the Free Software Foundation, either version 3 of the
+## License, or (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU Affero General Public License for more details.
+##
+## You should have received a copy of the GNU Affero General Public License
+## along with this program.  If not, see <http://www.gnu.org/licenses/>.
+## */
+
+Abstract:
+
+   The Quick-Suite provides an alternative interface for mobile and robot clients
+   to allow operations on DGS objects.
+
+Topics:
+
+   1. Introduction
+      - [MIGR] Migration Strategy
+
+   2. Login, Request and Response
+      a. Login & Logout
+      b. Request
+      c. Standard Response
+      d. List Response
+
+   3. Objects
+      a. "game"     - playing a started game
+      b. "user"     - user info
+      c. "message"  - message info, invitations
+      d. "folder"   - message-folders
+      e. "contact"  - contacts
+      f. "wroom"    - game-offers via waiting-room
+      g. "bulletin" - bulletins
+
+   4. Supporting Tools
+      - [SGF] SGF-download "sgf.php"
+      - [QST] quick-status "quick_status.php"
+      - [RSS] RSS-Feed     "rss/status.php"
+      - [WAP] WAP-Feed     "wap/status.php"
+      - [QPL] quick-play   "quick_play.php"
+
+   5. Errors
+      - Login Errors
+      - General Errors
+      - Game Errors
+      - Game Move Errors
+
+   6. Formats
+      a. Date-Formats
+      b. TimeLimit-Formats
+
+   7. Classes and Files
+   8. Possible Future Enhancements
+
+
+#############  TODO TODO TODO  ###############
+
+Issues to specify:
+   - how to handle DGS-tags in text (messages/posts/etc) on client-side ?
+   - how to control paging of lists (offset, limit, has_next)
+   - charsets, see http://www.dragongoserver.net/forum/read.php?forum=10&thread=27755#29511
+   - refactor error-codes, see section (5) !?
+
+   - fair-komi negotiation for game-status KOMI
+
+
+#-------- (1) Introduction ----------------------------------------------------
+
+The Quick-Suite provides an alternative interface to the DGS objects and operations.
+It accepts generic-formatted input and results in a JSON-formatted output.
+
+DGS "objects" represent different sections of the server:
+
+   - game         : playing game, game-info
+   - user         : users, player, profile
+   - message      : private messages, invitation, disputes
+   - folder       : folders for private messages
+   - contact      : contacts
+   - wroom        : waitingroom, new-game
+   - bulletin     : bulletins
+   - forum        : forums, threads, posts
+   - help         : FAQ
+
+Each "object" has a different set of "commands", that can be executed to get
+information about the "object" or perform operations on the "object".
+
+
+The new approach also supports and integrates parts of the former approach,
+also see section (4) "Supporting Tools":
+
+   - [SGF] SGF-download : to download SGF of game
+   - [QST] quick-status : to get list of games and messages known from status-page
+   - [RSS] RSS-Feed     : similar to quick-status as RSS-feed
+   - [WAP] WAP-Feed     : similar to quick-status as WAP-feed
+   - [QPL] quick-play   : to play game (with incomplete playing-interface)
+
+
+#-------- (1.MIGR] Migration Strategy -----------------------------------------
+
+Migration strategy of the former into the new approach will cover the steps:
+
+   - [SGF] extend the existing SGF-download (sgf.php)
+
+   - [QST] extend the existing quick-status (quick_status.php)
+
+   - [QPL] refactor the existing quick-play suite to serve as wrapper using
+     the new approach (quick_play.php) to stay compatible.
+     In the long term the "quick_play.php" tool will be removed.
+
+
+#-------- (2) Login, Request and Response -------------------------------------
+
+References:
+   * JSON - RFC 4627 - The application/json Media Type for JavaScript Object Notation (JSON)
+     http://tools.ietf.org/html/rfc4627
+     http://en.wikipedia.org/wiki/Json
+
+#-------- (2a) Login & Logout -------------------------------------------------
+
+A "command" is sent to the server via a GET or POST HTTP-request. The response is
+normally sent back with MIME-type "application/json" and contains the respective
+result for the requests command. The quick-script always expects a login-cookie
+in the HTTP-headers for authentication, which can be created with:
+
+   # for possible errors (see "Login Errors" below)
+   login.php?quick_mode=1&userid=HANDLE&passwd=PASSWORD
+
+   # perform operations
+   ...
+
+   # disconnect to clear cookies with session
+   login.php?quick_mode=1&logout=1
+
+Authentication is one purpose for the login, the other is to allow an user-based
+quota (and for that the user must be known and must be authenticated to avoid abuse).
+
+
+#-------- (2b) Request --------------------------------------------------------
+
+The standard request format looks like:
+
+   # json-mode returning 'application/json' content-type
+   quick_do.php?obj=<OBJNAME>&cmd=<COMMAND>&arg=...
+
+   # test-mode returning 'text/plain' content-type
+   quick_do.php?obj=<OBJNAME>&cmd=<COMMAND>&arg=...&test=1
+
+The HTTP-Content-Type of the result is "application/json", except when the optional
+"test"-argument is given, in which case the HTTP-Content-Type "plain/text" is used
+instead.
+
+
+#-------- (2c) Standard Reponse -----------------------------------------------
+
+The standard minimal response is a JSON-formatted text with a quick-suite-version
+and an error-code, there can be an optional 'error_msg' element:
+
+   {
+      "version": "1.0.15:13",      # DGS_VERSION:QUICK_VERSION
+      "error": "error_code",
+      "error_msg": "error message",
+      "quota_count": 497,          # remaining quota-count and quota-expire
+      "quota_expire": "2012-03-27 17:34:12"
+   }
+
+The version-info includes the current DGS_VERSION and the QUICK_VERSION defined in
+"include/globals.php". The QUICK_VERSION is increased with every release that changed
+some semantics or signature of the quick-interface.
+
+An empty 'error_code' indicates a successful operation, i.e. no errors have occured:
+
+   {
+      "version": "1.0.15:13",
+      "error": ""
+      "quota_count": 497,          # remaining quota-count and quota-expire
+      "quota_expire": "2012-03-27 17:34:12"
+   }
+
+The response may contain additional object- and command-specific return-values.
+
+   {
+      "version": "1.0.15:13",
+      "error": "",
+      "quota_count": 497,          # remaining quota-count and quota-expire
+      "quota_expire": "2012-03-27 17:34:12"
+
+      "output1": "simple text-value",              # simple scalar value
+
+      "output2": {                                 # object
+         "id": 123,
+         "object": {                               # nested object
+            "key": "val"
+         }
+      },
+
+      "output3": [ 1, 2, 3, "ape", "bear" ]        # array-value
+   }
+
+IMPORTANT NOTE:
+   Important to note is, that you shouldn't expect a particular order of keys
+   in the response or its nested return objects.
+
+
+#-------- (2d) List Reponse ---------------------------------------------------
+
+The quick-suite can also return list of object entries. In this case, the result
+always contains several mandatory and some optional standard fields:
+
+   {
+      "list_object": "game",        # object-name, corresponds to obj-option
+      "list_size": 2,               # total list-size
+      "list_offset": 0,             # list offset for paging a result
+      "list_limit": 20,             # number of entries per page; 0=all entries returned
+      "list_has_next": 0,           # 1=has next-page, 0=last page retrieved
+      "list_order": "key1+,key2-",  # list order, can be empty, +=ASCending, -=DESCending
+      "list_header": [ "key1", "key2", ... ],   # (optional); field-names for TABLE-style
+      "list_result": [ item1, item2, ... ]      # list-entries (array | objects)
+   }
+
+   * NOTE about "list_header" (see also example below):
+      - this field is only used for TABLE-style
+      - and only if list contains at least one item
+      - keys of nested objects are written using '.', e.g. "game.message.user.name"
+
+The output of objects in a full JSON-format can be quite large, because an object
+is normally represented as map of keys with their respective values for EACH item
+in the object-list.
+
+Therefore, the quick-suite provides two different formats to return a list of objects,
+which can be controlled with the parameter 'lstyle' (list-style):
+
+   1. TABLE-style : lstyle=table (default)
+   2. JSON-style  : lstyle=json
+
+JSON-style may be easier to handle than TABLE-style for JavaScript-based clients,
+because it can just be used as object. TABLE-style needs some special handling
+to access an object-field, though it should be easily possible to convert
+a TABLE-style list into a object-based list on client-side.
+
+One disadvantage for JSON-style is, that the output-size can be considerably
+larger for big lists (factor 2-10 or more), depending on the number of fields
+within a single list-object-item.
+
+Example for TABLE-style:
+
+   {
+      "list_object": "game",
+      "list_size": 2,
+      "list_offset": 0,
+      "list_limit": 0,
+      "list_has_next": 0,
+      "list_order": "",
+
+      "list_header": [ "id", "user.id", "user.handle" ],
+      "list_result": [
+         [ 111, 1, "guest" ],    # object #1
+         [ 222, 2, "ejlo" ]      # object #2
+      ]
+   }
+
+Example for JSON-style:
+
+   {
+      "list_object": "game",
+      "list_size": 2,
+      "list_offset": 0,
+      "list_limit": 0,
+      "list_has_next": 0,
+      "list_order": "",
+
+      "list_result": [
+         {                 # object #1
+            "id": 111,
+            "user": {
+               "id": 1,
+               "handle": 'guest',
+            }
+         },
+         {                 # object #2
+            "id": 222,
+            "user": {
+               "id": 2,
+               "handle": 'ejlo',
+            }
+         }
+      ]
+   }
+
+
+#-------- (3) Objects ---------------------------------------------------------
+
+The DGS "objects" currently supported are:
+
+   a) "game"     - playing a started game, game-info
+   b) "user"     - user-info
+   c) "message"  - message-info, invitations
+   d) "folder"   - message-folders
+   e) "contact"  - contacts
+   f) "wroom"    - waiting-room
+   g) "bulletin" - bulletins
+
+Notes:
+   - "corresponding pages" = pages of web-interface to perform similar operations
+   - possible errors of each command are given as reference at command-description,
+     referring into Error-section (5).
+
+
+#-------- (3a) Objects - "game" -----------------------------------------------
+
+Purpose:
+
+   The quick-suite for the game-object allows the following operations on a game:
+
+      - retrieve information about a game (info, game-notes);
+        corresponding pages: "game.php", "gameinfo.php"
+
+      - retrieve list of games;
+        corresponding pages: "status.php", "quick_status.php", "show_games.php"
+
+      - play the full-cycle of a game after it has been initiated:
+        corresponding pages: "game.php", "confirm.php"
+
+         - delete the game within first 10 moves
+         - setting free handicap stones
+         - playing all moves, including pass-moves
+         - scoring the game, resume playing on dissent
+         - resign the game
+
+   The quick-suite was planned to serve as replacement for the former limited
+   aproach of "quick_play.php" to play a game.
+
+Request:
+
+   quick_do.php?obj=game&cmd=<COMMAND>&gid=<GAME_ID>&move_id=<MOVE_ID>&move=<MOVES>&msg=<MESSAGE>&with=<WITH>&fmt=<FORMAT>&toggle=<TOGGLE>&agree=<AGREE>
+
+   # list
+   quick_do.php?obj=game&cmd=list&view=<VIEW>&with=<WITH>&lstyle=<LIST_STYLE>&uid=<USER_ID>
+
+Options:
+
+   <COMMAND> = "info" | "get_notes" | "list" | "delete" | "set_handicap" | "move" | "resign" | "status_score" | "score"
+
+   <GAME_ID> = integer
+      - reference game to perform game-operation on
+
+   <MOVE_ID> = context for move
+      - move_id = current DGS-move-number as stored in db in Games.Moves,
+        which also counts in handicap-stones and pass/scoring-"moves".
+
+        Providing context for game-operation to avoid errorneous states like:
+        - (a) multi-players account with simultaneous logins or
+        - (b) (duplicate move commitment) if one player hit twice the validation button
+          during a net lag, and/or
+        - (c) if the opponent had already played between the two calls
+
+   <MOVES> = move | moves | "pass"
+      - move = single move-coordinate in specified mode-format
+      - moves = list of coordinates in specified mode-format (see below)
+
+      - there are two mode-formats:
+          - moves are given in SGF-coordinates (lower letters), e.g. "bc",
+            specified in http://www.red-bean.com/sgf/go.html
+
+            SGF-coordinates may be written with or without comma-separation,
+            because one coordinate-pair is always two letters.
+            SGF-coordinates without comma is also used as default,
+            if the mode-format could not be determined.
+
+          - moves are given in board-coordinates (labels), e.g. "b17"
+            be aware, that board-coordinates skip the 'i'-character
+
+          - Examples:
+               - sgf-mode (without comma),   e.g. "bcpqmoeq"
+               - sgf-mode (comma-separated), e.g. "bc,pq,mo,eq"
+               - label-mode (comma-separated), e.g. "b17,q3,n5,e3"
+
+   <MESSAGE> = message
+      - optional game-message on game-operation
+
+   <VIEW> = view for game-list
+
+   <WITH> = optional with-option to deep-load recursive data (see commands)
+
+   <FORMAT> = output-format for coordinates (default is "sgf"):
+      - "sgf"   : SGF-format without separator, e.g. "bcefnj"
+      - ","     : SGF-format with comma-separator, e.g. "bc,ef,nj"
+      - "board" : board-coordindates with comma-separator, e.g. "b17,e14,o10"
+
+      - NOTE about lengths of output for different formats:
+            sgf-format < ','-format < board-format, e.g. 900 < 1250 < 1450 bytes
+
+   <TOGGLE> = toggle-mode for "status_score" and "score" commands
+      - "all" (default) = each given coordinate-point toggles the point-state and
+        adjacent points of the same "group" (as the GUI does it)
+      - "uniq" = given coordinate-points toggle groups in a unique fashion,
+        i.e. points are only toggled once for all togglings if they belong to the same unique group.
+
+   <AGREE> = for "score"-command: give agreement with current state of stones (dead/alive/neutral/dame) and score
+      - 1 = agree
+      - 0 = disagree (default)
+
+      - NOTE: agreement could be represented by an empty MOVES-argument, but to prevent "slip"
+        in client, it's specified explicitly by giving the AGREE-argument.
+
+   <LIST_STYLE> = see list-style in section (2d)
+
+   <USER_ID> = integer | 'mine'
+      - user-id (integer)
+      - 'mine' = logged-in user
+
+
+Commands:
+
+   "info" : retrieve game-information
+      - required opts: GAME_ID
+      - optional opts: WITH
+
+      - WITH-option:
+         - 'user_id' : additionally return user_id-data (handle + name) for white and black user
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN]
+         - unknown_game : invalid game
+
+      - Result (JSON) =
+         {
+            "id" : 123456,          # game-id
+            "double_id" : 0,        # > 0 if double-game, < 0 if double-game deleted; abs(double_id) == ref to other game-id
+            "tournament_id" : 0,    # tournament-id > 0 if game is part of tournament
+            "game_action" : 2,      # game-action as defined for [4.QST]
+            "status" : "PLAY",      # game-status: KOMI | SETUP | PLAY | PASS | SCORE | SCORE2 | FINISHED
+            "flags" : "HIDDENMSG",  # flags (comma-separated): HIDDENMSG (game contains hidden-messages), ADMRESULT (admin ended game)
+            "score" : "",           # score for finished game only (same format as for status_score-command above)
+
+            "rated" : 1,            # 0=unrated, 1=rated
+            "game_type" : "GO",     # GO | TEAM_GO(N:M) | ZEN_GO (N); N,M >= 1
+            "ruleset" : "JAPANESE", # ruleset: JAPANESE | CHINESE
+            "size" : 19,            # board-size
+            "komi" : 6.5,           # komi
+            "jigo_mode" : "KEEP_KOMI", # only relevant for fair-komi: KEEP_KOMI, ALLOW_JIGO, NO_JIGO
+            "handicap" : 0,         # handicap-stones
+            "handicap_mode" : "FREE", # STD=standard-handicap, FREE=free-handicap
+
+            "shape_id" : 0,         # shape-id > 0 if game was started as shape-game
+            "shape_snapshot" : "",  # shape-snapshot
+
+            "time_started" : "YYYY-MM-DD hh:mm:ss",  # game started time
+            "time_lastmove" : "YYYY-MM-DD hh:mm:ss", # last-moved (also game-end-time if finished)
+            "time_weekend_clock" : 1, # 1=time-running on weekend, 0=otherwise
+            "time_mode" : "CAN",      # time-mode: FIS=Fischer-time, JAP=japanese-time, CAN=canadian-time
+            "time_limit" : "C: 14d + 15d / 8", # initial time-settings for game (like in waiting-room),
+                                               # see section (6b) "TimeLimit-Formats"
+
+            "move_id" : 75,         # move-id, required as context for playing via game-quick-suite
+            "move_color" : "B",     # B=black-to-move, W=white-to-move
+            "move_uid" : 111,       # user-id to move next
+            "move_last" : "bc",     # SGF-format of last-move ("" for non-board-move, e.g. pass/scoring)
+            "move_ko" : 0,          # 1=ko, 0=no-ko in last-move
+
+            "black_user" : {        # black-user object-info
+               "id" : 111,                # USER_ID
+               # the following fields only if WITH-option contain 'user_id'
+               "handle" : "black-handle", # USER_HANDLE
+               "name" : "black-name",     # user name
+               "rating" : "3k (-7%)",             # current DGS rating | "" (=no rating)
+               "rating_elo" : "1792.59326171875", # current DGS elo-rating | "" (=no rating)
+            },
+            "black_gameinfo" : {    # game-info of black-user
+               "prisoners" : 3,                         # prisoners
+               "remtime" : "C: 1d 10h (+ 15d / 8)",     # remaining-time (same format as for quick-status)
+               "rating_start" : "3k (-7%)",             # start-rating
+               "rating_start_elo" : "1792.59326171875", # start-rating ELO
+               "rating_end" : "3k (-7%)",               # end-rating (after game finished)
+               "rating_end_elo" : "1792.59326171875",   # start-rating ELO (after game finished)
+            },
+
+            "white_user" : {        # white-user object-info
+               "id" : 111,                # USER_ID
+               # the following fields only if WITH-option contain 'user_id'
+               "handle" : "white-handle", # USER_HANDLE
+               "name" : "white-name",     # user name
+               "rating" : "3k (-7%)",             # current DGS rating | "" (=no rating)
+               "rating_elo" : "1792.59326171875", # current DGS elo-rating | "" (=no rating)
+            },
+            "white_gameinfo" : {    # game-info of white-user
+               "prisoners" : 3,                         # prisoners
+               "remtime" : "C: 11h / 2 (15d / 8)",      # remaining-time (same format as for quick-status)
+               "rating_start" : "3k (-7%)",             # start-rating
+               "rating_end" : "3k (-7%)",               # end-rating (after game finished)
+               "rating_elo_start" : "1792.59326171875", # start-rating ELO
+               "rating_elo_end" : "1792.59326171875",   # start-rating ELO (after game finished)
+            }
+         }
+
+   "get_notes" : retrieve game-notes
+      - required opts: GAME_ID
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN]
+         - unknown_game : invalid game
+
+      - Result (JSON) =
+         {
+            "notes" : "",      # users game-notes (only for logged-in user)
+         }
+
+
+   # NOT IMPLEMENTED: to-specify (TODO)
+   "list" : retrieve list of games
+      - required opts: VIEW
+      - optional opts: USER_ID, LIST_STYLE, WITH
+
+      - VIEW-option:
+         - 'status'    : ask for running games where to move in for given USER_ID
+         - 'running'   : ask for running games for logged-in user  (uid=mine)
+         - 'finished'  : ask for finished games for logged-in user (uid=mine)
+         - 'observing' : ask for games observed by logged-in user  (uid=mine)
+         - 'observed'  : ask for all observed games
+         - 'mpg'       : ask for multi-player-games
+
+      - USER_ID-option:
+         - empty | 0 = default, for most views the default-USER_ID is 'mine'
+         - 'mine'    = use logged-in user-id
+         - integer   = use other user-id (can be logged-in user-id)
+
+         - NOTE: not all values allowed for all views
+
+      - WITH-option:
+         - 'user_id' : additionally return user_id-data (handle + name) for game-players
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN]
+
+      - Result (JSON) = result-list see section (2d) with list of objects dependent on view:
+         - only fields are listed here, check semantics on section (3a), see "info"-command
+
+         * VIEW = 'status'
+           game_id, tournament_id, game_status, game_prio, move_id,
+           game_type, ruleset, size, handicap, komi, rated,
+           moves, move_color, time_lastmove, time_remaining,
+           opp_uid, opp_handle, opp_name, opp_rating, opp_lastaccess
+
+         * VIEW = 'running' | 'finished' | 'observing' | 'observed':
+           - not defined ATM -> see 'status'
+           - to-specify:
+             black|white_user (nested object according to WITH-option),
+             black|white_gameinfo.remtime
+
+         * VIEW = 'mpg':
+           - not defined ATM -> see 'status'
+
+
+   "delete" : deletes specified game
+      - required opts: GAME_ID, MOVE_ID
+      - optional opts: MESSAGE
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN]
+         - unknown_game : invalid game
+         - invalid_action : tried to delete game after first 10 moves
+
+   "set_handicap" : sets handicap stones at start of game
+      - required opts: GAME_ID, MOVE_ID, MOVES
+         - MOVE = moves : list of coordinates of the handicap-stone placement
+      - optional opts: MESSAGE
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN], [E-GAME]
+         - invalid_action : tried to set handicap too early, too late,
+           as white-player or in game without handicap
+         - wrong_number_of_handicap_stone : number of set handicap stones
+           do not match required handicap
+
+   "move" :
+      - required opts: GAME_ID, MOVE_ID, MOVES
+         - MOVES = move : single move to submit, move="pass" for passing move
+      - optional opts: MESSAGE
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN], [E-GAME], [E-GAMEMOVE]
+         - early_pass : pass-move forbidden as first move or before setting handicap
+         - invalid_action : pass-move only allowed in PLAY or PASS status,
+           i.e. only allowed directly after other pass-move or after normal move
+         - illegal_position : invalid coordinates used for move,
+           or coordinates given that are occupied by other stone
+         - suicide : move forbidden because it would be suicide
+         - ko : move forbidden because of ko
+         - move_problem : prisoner-calculation wrong -> contact admin
+
+   "resign" : resigns specified game
+      - required opts: GAME_ID, MOVE_ID
+      - optional opts: MESSAGE
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN], [E-GAME], [E-GAMEMOVE]
+
+   "status_score" : verify game-score and state of stones (dead, alive, neutral, dame)
+      - required opts: GAME_ID, MOVE_ID, MOVES
+         - MOVE = coords : list of coordinates that 'state' should be "switched"
+      - optional opts: MESSAGE (will be ignored), FORMAT, TOGGLE
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN], [E-GAME], [E-GAMEMOVE]
+         - invalid_action : bad game-status for scoring step (only SCORE|SCORE2)
+         - invalid_switch : if state of coordinate can not be switched
+         - illegal_position : invalid coordinates used for stones to switch state
+
+      - Result (JSON) =
+         {
+            "ruleset" : "CHINESE",           # game-ruleset
+            "score" : 0 | "W+7" | "B+2.5", # 0=jigo
+
+            # format of coordinates depends on FMT-parameter
+            "dame"            : "...", # coords*
+            "neutral"         : "...", # coords* (switchable)
+            "white_stones"    : "bc...", # coords*
+            "black_stones"    : "aa...", # coords*
+            "white_dead"      : "...", # coords*
+            "black_dead"      : "...", # coords*
+            "white_territory" : "...", # coords*
+            "black_territory" : "...", # coords*
+         }
+
+
+   "score" : disagree with dead/alive/neutral-state of stones, agree on stones-state finishing game
+      - required opts: GAME_ID, MOVE_ID, MOVES
+         - MOVE = coords : list of coordinates of which the 'state' should be "switched"
+      - optional opts: MESSAGE, FORMAT, TOGGLE, AGREE
+
+      - Notes:
+         - to agree and finish game accepting the score, give AGREE argument
+         - to disagree with current stones-state give move-coordinates to toggle
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN], [E-GAME], [E-GAMEMOVE]
+         - invalid_action :
+            - bad game-status for scoring step (only SCORE|SCORE2)
+            - on "score"-command agreement-mismatch, either agreement was expected but there are
+              toggled state of stones, or disagreement was expected but no state of stones is toggled
+         - invalid_switch : if state of coordindate can not be switched
+         - illegal_position : invalid coordinates used for stones to switch state
+
+
+Examples of game-playing cycle:
+
+   # login setting cookie in HTTP-header storing: handle, sessioncode
+   login.php?quick_mode=1&userid=user&passwd=userpassword
+
+   # retrieve list of games to play in
+   # (syntax given in commented line starting with '# comment')
+   quick_status.php?order=0
+   quick_status.php?user=user
+   quick_status.php?uid=123
+   do_quick.php?obj=game&cmd=list&view=status&uid=123&lstyle=table
+
+   # download game with moves
+   # - marked-dead-stones stored in MA-property
+   # - move_id stored in XM-private-property
+   # - other game-parameters
+   #
+   # parameters:
+   #    quick_mode=0|1       : 1 = ignore errors
+   #    gid=1234|game1234    : game-id
+   #    no_cache=0|1         : 1 = disable cache (expire-header)
+   #    owned_comments=0|1|N : 1 = if set try to return private comments (for players only) including private notes on game,
+   #                           0 = return only public comments
+   #                           N = return NO comments or notes
+   #    inline=0|1           : 1 = use Content-Disposition type of "inline" to directly start assigned application
+   #    bulk=0|1             : 1 = use special filename-pattern (omit handicap if =0 and result if unfinished game):
+   #                           DGS-<gid>_YYYY-MM-DD_<rated=R|F><size>(H<handi>)K<komi>(=<result>)_<white>-<black>.sgf
+   sgf.php?gid=12345&owned_comments=1&quick_mode=1
+
+
+   # (optional) setting handicap stones
+   quick_do.php?obj=game&cmd=set_handicap&gid=12345&move_id=0&move=q16,b4&msg=Onegaishimasu
+
+   # (first) regular move (move_id=0)
+   quick_do.php?obj=game&cmd=move&gid=12345&move_id=0&move=q3
+
+   # regular move
+   quick_do.php?obj=game&cmd=move&gid=12345&move_id=1&move=c17
+
+   # pass moves
+   quick_do.php?obj=game&cmd=move&gid=12345&move_id=2&move=pass
+   quick_do.php?obj=game&cmd=move&gid=12345&move_id=3&move=pass
+
+
+   # scoring-phase: verify score & assess dead/alive-status
+   quick_do.php?obj=game&cmd=status_score&gid=12345
+   quick_do.php?obj=game&cmd=status_score&gid=12345&toggle=uniq&move=c17,q3
+   quick_do.php?obj=game&cmd=score&gid=12345&move_id=4&toggle=uniq&move=c17,q3
+
+   # scoring-phase: verify score + disagree on score
+   quick_do.php?obj=game&cmd=status_score&gid=12345&move_id=5
+   quick_do.php?obj=game&cmd=score&gid=12345&move_id=5&move=q16,d4
+
+   # scoring-phase: verify score + agree on score
+   quick_do.php?obj=game&cmd=status_score&gid=12345&move_id=5
+   quick_do.php?obj=game&cmd=score&gid=12345&move_id=5&move=&agree=1
+
+   # scoring-phase: resume playing (on disagreement)
+   quick_do.php?obj=game&cmd=status_score&gid=12345&move_id=5
+   quick_do.php?obj=game&cmd=move&gid=12345&move_id=5&move=r14
+
+
+   # resign
+   quick_do.php?obj=game&cmd=resign&gid=12345&move_id=6
+
+
+   # delete (only on first 10 moves)
+   quick_do.php?obj=game&cmd=delete&gid=12345&move_id=6
+
+
+   # get game-notes
+   do_quick.php?obj=game&cmd=get_notes&gid=12345
+
+   # retrieve list of my running-games in JSON-style list-format
+   do_quick.php?obj=game&cmd=list&view=running&uid=mine&lstyle=json&with=user_id
+
+
+#-------- (3b) Objects - "user" -----------------------------------------------
+
+Purpose:
+
+   The quick-suite for the user-object allows to
+
+      - retrieve public information about a user;
+        corresponding pages: "userinfo.php"
+
+Request:
+
+   quick_do.php?obj=user&cmd=<COMMAND>&uid=<USER_ID>&user=<USER_HANDLE>
+
+Options:
+
+   <COMMAND> = "info"
+
+   <USER_ID> = integer
+   <USER_HANDLE> = string
+      - reference user to perform user-operation on
+        - USER_ID is the unique user-id (uid),
+          e.g. http://www.dragongoserver.net/userinfo.php?uid=1
+        - USER_HANDLE is the unique user-id (handle),
+          e.g. http://www.dragongoserver.net/userinfo.php?user=guest
+      - only one argument for <USER_ID> or <USER_HANDLE> can be used
+
+
+Commands:
+
+   "info" : returns public user-info
+      - optional opts: USER_ID|USER_HANDLE
+         - if USER_ID and HANDLE is omitted, the ID of the logged-in user is used per default.
+           This can be used to check if and which user is logged-in.
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN]
+         - not_logged_in : returned if not logged-in;
+           omit USER_ID|HANDLE to check it still logged-in (and which user)
+         - invalid_args : bad parameters (missing user-id)
+         - unknown_user : unknown user-id specified
+
+      - Result (JSON) =
+         {
+            "id" : 1,                  # USER_ID
+            "handle" : "guest",        # USER_HANDLE
+            "type" : "",               # user types (comma-separated): pro teacher bot
+            "name" : "name",           # user name
+            "country" : "se",          # DGS country-code, e.g. http://www.dragongoserver.net/images/flags/se.gif
+            "picture" : "",            # picture-filename, e.g. http://localhost/dev/userpic/5318.png?t=YYYYMMDDhhmmss
+            "vacation_left" : 25,      # vacation days left
+            "vacation_on" : "2d 7h",   # on-vacation ("" = not-on vac.)
+            "register_date" : "YYYY-MM-DD",        # register-date
+            "last_access" : "YYYY-MM-DD hh:mm:ss", # date of last access (website; in users time-zone; can be empty)
+            "last_quick_access" : "YYYY-MM-DD hh:mm:ss", # date of last access (quick-suite; in users time-zone; can be empty)
+            "last_move" : "YYYY-MM-DD hh:mm:ss",   # date of last move (in users time-zone; can be empty)
+            "rating_status" : "RATED",         # NONE | INIT | RATED
+            "rating" : "5k (+46%)",            # DGS rating | "" (=no rating)
+            "rating_elo" : "1643.88952636719", # DGS elo-rating | "" (=no rating)
+            "rank" : "5k EGF",                 # user rank-info (contains HTML)
+            "open_match" : "ask later",        # user open-for-match-info (contains HTML)
+            "games_running" : 5,     # number of running games
+            "games_finished" : 50,   # number of finished games
+            "games_rated" : 10,      # number of (finished) rated games
+            "games_won" : 8,         # number of (finished rated) won games
+            "games_lost" : 2,        # number of (finished rated) lost games
+            "games_mpg" : 0,         # number of started multi-player-games
+         }
+
+      - Result Values:
+
+         - rating_status:
+            - NONE = has no rating
+            - INIT = has rating but no rated game yet
+            - RATED = started/played rated game (has a rating)
+
+
+Examples for user-commands:
+
+   # login setting cookie in HTTP-header storing: handle, sessioncode
+   login.php?quick_mode=1&userid=user&passwd=userpassword
+
+   # retrieve user-info
+   quick_do.php?obj=user&cmd=info&user=guest
+
+
+#-------- (3c) Objects - "message" --------------------------------------------
+
+Purpose:
+
+   The quick-suite for the message-object allows to
+
+      - retrieve private message, send new message, reply to message;
+        corresponding pages: "message.php"
+
+      - move message to other folder, delete message, list/search messages;
+        corresponding pages: "message.php", "list_messages.php", "search_messages.php"
+
+      - accept game-invitation message, decline game-invitation message;
+        corresponding pages: "message.php"
+
+Request:
+
+   quick_do.php?obj=message&cmd=<COMMAND>&mid=<MESSAGE_ID>&ouid=<OTHER_UID>&ouser=<OTHER_HANDLE>&subj=<SUBJECT>&msg=<MESSAGE>&folder=<FOLDER>&with=<WITH>
+
+   # list
+   quick_do.php?obj=message&cmd=list&with=<WITH>&lstyle=<LIST_STYLE>
+
+Options:
+
+   <COMMAND> = "info" | "send_msg" | "move_msg" | "delete_msg" | "accept_inv" | "decline_inv" | "list"
+
+   <MESSAGE_ID> = integer
+      - message-id referencing private DGS-message to perform message-operation on
+      - message-id to reply to for "send_msg/accept_inv/decline_inv"-command
+
+   <OTHER_UID> = integer
+   <OTHER_HANDLE> = string
+      - OTHER_UID : specific user-id for bulk-message to identify unique entry
+
+      - OTHER_UID|OTHER_HANDLE : recipient of message:
+        - OTHER_UID is the unique user-id (uid),
+          e.g. http://www.dragongoserver.net/userinfo.php?uid=1
+        - OTHER_HANDLE is the unique user-id (handle),
+          e.g. http://www.dragongoserver.net/userinfo.php?user=guest
+      - only one argument for <OTHER_UID> or <OTHER_HANDLE> can be used for sending message
+
+   <SUBJECT> = title of message
+
+   <MESSAGE> = text-body of message
+      - message-text for message-operation
+
+   <FOLDER> = integer
+      - target folder
+
+   <LIST_STYLE> = see list-style in section (2d)
+
+   <WITH> = optional with-option to deep-load recursive data (see commands)
+
+
+Commands:
+
+   "info" : returns private message
+      - required opts: MESSAGE_ID
+      - optional opts: OTHER_UID (for bulk-message), FOLDER, WITH
+
+      - WITH-option:
+         - 'user_id' : additionally return user_id-data (handle + name) for message correspondent
+         - 'folder'  : additionally return folder-data (name + color_bg + color_fg) for message
+
+      - Important Notes:
+         * message-type DISPUTED currently not supported by quick-suite,
+           because that needs game-settings as well => ignore them
+         * using "info"-command will automatically mark message as read (like GUI on message-read),
+           can be overwritten with target-FOLDER for non-invitation-messages (e.g. reply-folder)
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN]
+         - invalid_args : bad parameters (missing message-id)
+         - unknown_message : unknown message-id specified
+
+      - Result (JSON) = // also see specs/db/table-Messages.txt
+         {
+            "id" : 1,          # message-id
+            "user_from" : {
+               "id" : 111,          # user-id of sender, 0=server-message
+               # the following fields only if WITH-option contain 'user_id'
+               "handle" : "user1",  # USER_HANDLE
+               "name" : "name1",    # user name
+               "rating" : "5k (+46%)",            # DGS rating | "" (=no rating)
+               "rating_elo" : "1643.88952636719", # DGS elo-rating | "" (=no rating)
+            },
+            "user_to" : {
+               "id" : 222,          # user-id of receiver
+               # the following fields only if WITH-option contain 'user_id'
+               "handle" : "user2",  # USER_HANDLE
+               "name" : "name2",    # user name
+               "rating" : "5k (+46%)",            # DGS rating | "" (=no rating)
+               "rating_elo" : "1643.88952636719", # DGS elo-rating | "" (=no rating)
+            },
+            "type" : "NORMAL", # message-type (see specs/db/):
+                               # types = NORMAL | INVITATION | DISPUTED | RESULT
+                               # not supported by quick-suite yet: | DISPUTED
+            "flags" : "",      # flags (comma-separated): BULK (multi-receiver bulk-message)
+            "folder" : {
+               "id" : 2,                # folder-nr (<0, 0-5 system-folder, >= 6 user-folder)
+               # the following fields only if WITH-option contain 'folder'
+               "name" : "New",          # folder-name (lang-dependent)
+               "system" : 1,            # 1=system-folder, 0=user-folder
+               "color_bg" : "F7F5E399", # folder background-color (incl. alpha-channel) in hex-format
+               "color_fg" : "000000",   # folder foreground-color (=font-color) in hex-format
+            },
+            "created_at" : "YYYY-MM-DD hh:mm:ss", # creation-date of message
+            "thread" : 0,           # message-id of first message in a message-thread, 0=system-message
+            "level" : 0,            # thread-level of message-thread (starting at 0)
+            "message_prev" : 0,     # message-id of message that has been replied to
+            "message_hasnext" : 1,  # 0=no-answer for current message, 1=there are answer(s) to this message
+            "can_reply" : 1,        # 1=reply allowed, 0=reply forbidden
+            "need_reply" : 2,       # 2=message needs reply, 1=message has been replied, 0=no reply needed
+            "game_id" : 0,          # game-id for game-related message (e.g. invitation); game may be deleted
+            "subject" : "boo",      # subject of message
+            "text" : "haha",        # content of message
+
+            # additional fields set, if message is of type INVITATION
+            "game_status" : "INVITED",    # game-status:
+                                          # - "INVITED" = active invitation
+                                          # - "" (empty) = invitation declined, game-info deleted
+                                          # - other-status = invitation accepted, normal game-status -> see (3a) 'status'-field for "info"-command
+            "game_settings" : {           # 'game_settings' only present, if game_status == INVITED
+               "game_type" : "GO",        # always 'GO' for invitations
+               "game_players" : "1:1",    # always '1:1' for invitations
+               "handicap_type" : "conv",  # see HTYPE_... in 'include/game_functions.php':
+                                          # conv, proper, nigiri, double, black, white, auko_sec, auko_opn, div_ykic, div_ikyc
+                                          # see also section (3c) message-object "info"-command "handicap_type"-field
+               "shape_id" : 0,            # shape-id > 0 if game was started as shape-game
+
+               "rated" : 1,               # 0=unrated, 1=rated
+               "ruleset" : "JAPANESE",    # ruleset: JAPANESE | CHINESE
+               "size" : 19,               # board-size
+               "komi" : 6.5,              # komi
+               "jigo_mode" : "KEEP_KOMI", # only relevant for fair-komi: KEEP_KOMI, ALLOW_JIGO, NO_JIGO
+               "handicap" : 0,            # handicap-stones
+               "handicap_mode" : "FREE",  # STD=standard-handicap, FREE=free-handicap
+
+               "time_weekend_clock" : 1,  # 1=time-running on weekend, 0=otherwise
+               "time_mode" : "CAN",       # time-mode: FIS=Fischer-time, JAP=japanese-time, CAN=canadian-time
+               "time_limit" : "C: 14d + 15d / 8", # initial time-settings for game (like in waiting-room),
+                                                  # see section (6b) "TimeLimit-Formats"
+               "time_main" : 210,         # time-limit main-time [1 unit = 1 hour, 15 hour = 1 DGS-day]
+               "time_byo" : 225,          # time-limit byo-time [1 unit = 1 hour, 15 hour = 1 DGS-day]; extra-time for Fischer-time
+               "time_periods" : 8,        # time-limit byo-periods: periods (for JAP), stones (for CAN), unused (=0, for FIS)
+
+               "opp_started_games" : 0,   # number of games already started with opponent
+               "calc_type" : 1,           # quality of setings: 1=probable-setting (conv/proper depends on rating), 2=fix-calculated
+               "calc_color" : "black",    # probable/fix color of logged-in user: double | fairkomi | nigiri | black | white
+               "calc_handicap" : 3,       # probable/fix handicap
+               "calc_komi" : 6.5,         # probably/fix komi, empty "" for fairkomi
+            },
+         }
+
+   "send_msg" : send new message, reply to message
+      - required opts: OTHER_UID|OTHER_HANDLE (not for reply), SUBJECT
+         - for replying received message OTHER_UID|OTHER_HANDLE must NOT be used
+      - optional opts: MESSAGE_ID (for replies), FOLDER (target-folder), MESSAGE
+         - MESSAGE_ID : message-id to reply to with sending-message,
+           parameters OTHER_UID|OTHER_HANDLE must not be used for replying
+         - FOLDER : target-folder of replied-to message for sending-user
+
+      - Notes:
+         - NOT SUPPORTED: sending invites for multi-player-games, sending bulk-message
+         - if FOLDER is omitted, behave like GUI moving replied-message into MAIN-folder
+         - message to send will be moved into SENT-folder for sending-user
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN], [E-MSG], [E-MSGSEND]
+
+      - Result (JSON) =
+         {
+            "error_texts" : [          # empty array, if no "error" returned; otherwise list of error-texts
+               "err1", "err2", ...     # free error-texts
+            ],
+         }
+
+   "move_msg" : moves message(s) into target folder
+      - required opts: MESSAGE_ID, FOLDER
+         - multiple message-ids allowed separated by comma
+
+      - Notes:
+         - messages that need reply can not be moved
+         - some target-folder may not be used to move certain type of messages to (like in REPLY/SENT-folder)
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN], [E-MSG]
+
+      - Result (JSON) =
+         {
+            "success_count" : 1,       # number of messages, that were moved successfully
+            "failure_count" : 0,       # number of messages, that were not deleted (maybe need reply)
+         }
+
+   "delete_msg" : deletes message(s)
+      - required opts: MESSAGE_ID
+         - multiple message-ids allowed separated by comma
+
+      - Notes:
+         - messages can not be deleted, if they need a reply
+         - messages are not really destroyed but moved into the internally used DESTROY-folder
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN], [E-MSG]
+
+      - Result (JSON) =
+         {
+            "success_count" : 1,       # number of messages, that were deleted successfully
+            "failure_count" : 0,       # number of messages, that were not deleted (maybe need reply)
+         }
+
+   "accept_inv" : accepts game-invitation
+      - required opts: MESSAGE_ID
+      - optional opts: MESSAGE, FOLDER
+         - FOLDER : target-folder of replied-to message for sending-user
+
+      - Notes:
+         - if FOLDER is omitted, behave like GUI moving replied-message into MAIN-folder
+         - message to send will be moved into SENT-folder for sending-user
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN], [E-GAMECREATE], [E-MSG], [E-MSGSEND]
+
+   "decline_inv" : declines game-invitation
+      - required opts: MESSAGE_ID
+      - optional opts: MESSAGE, FOLDER
+         - FOLDER : target-folder of replied-to message for sending-user
+
+      - Notes:
+         - if FOLDER is omitted, behave like GUI moving replied-message into MAIN-folder
+         - message to send will be moved into SENT-folder for sending-user
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN], [E-GAMECREATE], [E-MSG], [E-MSGSEND]
+
+   # NOT fully IMPLEMENTED: to-specify (filter) (TODO)
+   "list" : retrieve list of messages
+      - required opts: -
+      - optional opts: LIST_STYLE, WITH, FILTERS (TODO)
+
+      - to-specify (TODO): limit, offset, order, filters
+         - FILTERS-args:
+           - filter.type = INVITATION (match values from "info")
+           - filter.folder = 1,2, ... ; std-folders have aliases NEW, REPLY, MAIN, TRASH, DEL, ... ???
+           - filter.need_reply = 0|1|all=empty
+         - WITH-options ? -> only msg-id (no texts, maybe subject included, text only in single-mode)
+
+      - Result (JSON) =
+         {
+            "list_object" : "message", # list of object-types
+            "list_size" : 5,           # list-size total
+            "list_offset" : 0,         # start offset of list-part (for paging)
+            "list_limit" : 0,          # number of entries per page
+            "list_order" : "",         # order of list (field-names, comma-separated), ""=no-order
+            "list_result" : [          # array with found objects matching list-search
+               {
+                  "id" : 1,          # message-id
+                  "user_from" : {
+                     "id" : 111,          # user-id of sender, 0=server-message
+                     # the following fields only if WITH-option contain 'user_id'
+                     "handle" : "user1",  # USER_HANDLE
+                     "name" : "name1",    # user name
+                     "rating" : "3k (-7%)",             # current DGS rating | "" (=no rating)
+                     "rating_elo" : "1792.59326171875", # current DGS elo-rating | "" (=no rating)
+                  },
+                  "user_to" : {
+                     "id" : 222,          # user-id of receiver
+                     # the following fields only if WITH-option contain 'user_id'
+                     "handle" : "user2",  # USER_HANDLE
+                     "name" : "name2",    # user name
+                     "rating" : "",       # current DGS rating | "" (=no rating)
+                     "rating_elo" : "",   # current DGS elo-rating | "" (=no rating)
+                  },
+                  "type" : "NORMAL",      # message-type (see "info"-command)
+                  "flags" : "",           # flags (comma-separated): BULK (multi-receiver bulk-message)
+                  "folder_id" : 2,        # folder.id (see "info"-command)
+                  "created_at" : "YYYY-MM-DD hh:mm:ss", # creation-date of message
+                  "thread" : 0,           # message-id of first message in a message-thread, 0=system-message
+                  "level" : 0,            # thread-level of message-thread (starting at 0)
+                  "message_prev" : 0,     # message-id of message that has been replied to
+                  "message_hasnext" : 1,  # 0=no-answer for current message, 1=there are answer(s) to this message
+                  "needs_reply" : 1,      # 1=message-needs-reply, 0=normal message
+                  "game_id" : 0,          # game-id for game-related message (e.g. invitation); game may be deleted
+                  "subject" : "boo",      # subject of message
+               },
+               ...
+            ]
+         }
+
+
+
+Examples for message-commands:
+
+   # login setting cookie in HTTP-header storing: handle, sessioncode
+   login.php?quick_mode=1&userid=user&passwd=userpassword
+
+   # retrieve message
+   quick_do.php?obj=message&cmd=info&mid=1234567
+
+   # retrieve bulk-message for certain recipient
+   quick_do.php?obj=message&cmd=info&mid=1234567&ouid=2
+
+
+#-------- (3d) Objects - "folder" ---------------------------------------------
+
+Purpose:
+
+   The quick-suite for the folder-object allows to
+
+      - retrieve information about folders to store private messages in;
+        corresponding pages: "list_messages.php", "edit_folders.php"
+
+Request:
+
+   quick_do.php?obj=folder&cmd=<COMMAND>
+
+   # list
+   quick_do.php?obj=folder&cmd=list&lstyle=<LIST_STYLE>
+
+Options:
+
+   <COMMAND> = "list"
+
+   <LIST_STYLE> = see list-style in section (2d)
+
+
+Commands:
+
+   "list" : returns list of message-folders in natural order
+      - required opts: -
+      - optional opts: LIST_STYLE
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN]
+
+      - Result (JSON) = // also see specs/db/table-Messages.txt
+
+         {
+            "list_object" : "folder",  # list of object-types
+            "list_size" : 5,           # list-size total
+            "list_offset" : 0,         # start offset of list-part (for paging)
+            "list_limit" : 0,          # number of entries per page
+            "list_order" : "",         # order of list (field-names, comma-separated), ""=no-order
+            "list_result" : [          # array with found objects matching list-search
+               {
+                  "id" : 2,                # folder-nr (<0, 0-5 system-folder, >= 6 user-folder)
+                  "name" : "New",          # folder-name (lang-dependent)
+                  "system" : 1,            # 1=system-folder, 0=user-folder
+                  "color_bg" : "F7F5E399", # folder background-color (incl. alpha-channel) in hex-format
+                  "color_fg" : "000000",   # folder foreground-color (=font-color) in hex-format
+                  "on_status" : 1,         # 1=shown on status-page, 0=folder-content only shown in message-list
+               },
+               ...
+            ]
+         }
+
+
+Examples for folder-commands:
+
+   # login setting cookie in HTTP-header storing: handle, sessioncode
+   login.php?quick_mode=1&userid=user&passwd=userpassword
+
+   # retrieve folders
+   quick_do.php?obj=folder&cmd=list
+
+
+#-------- (3e) Objects - "contact" --------------------------------------------
+
+Purpose:
+
+   The quick-suite for the contact-object allows to
+
+      - retrieve information about a users contacts
+        corresponding pages: "list_contacts.php"
+
+Request:
+
+   quick_do.php?obj=contact&cmd=<COMMAND>
+
+   # list
+   quick_do.php?obj=contact&cmd=list&lstyle=<LIST_STYLE>
+
+Options:
+
+   <COMMAND> = "list"
+
+   <LIST_STYLE> = see list-style in section (2d)
+
+
+Commands:
+
+   "list" : returns list of contacts
+      - required opts: -
+      - optional opts: LIST_STYLE
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN]
+
+      - Result (JSON) =
+         {
+            "list_object" : "contact",
+            "list_size" : 3,
+            "list_offset" : 0,
+            "list_limit" : 0,
+            "list_order" : "contact_user.name+", # order of list + direction '+|-' (field-names, comma-separated), ""=standard-order
+            "list_result" : [
+               {
+                  "contact_user" : {
+                     "id" : 1,            # user-id of contact
+                     "handle" : "guest",  # USER_HANDLE
+                     "name" : "Guest",    # user name
+                     # for the following fields -> see "info"-command for user-object (3b)
+                     "type" : "",
+                     "country" : "se",
+                     "picture" : "",
+                     "last_access" : "YYYY-MM-DD hh:mm:ss",
+                     "last_move" : "YYYY-MM-DD hh:mm:ss",
+                     "rating_status" : "RATED",
+                     "rating" : "5k (+46%)",
+                     "rating_elo" : "1643.88952636719",
+                  },
+                  "system_flags" : "",    # system flags (comma-separated): WAITINGROOM REJECT_MESSAGE REJECT_INVITE WR_HIDE_GAMES
+                  "user_flags" : "",      # user flags (comma-separated): BUDDY FRIEND STUDENT TEACHER FAN ADMIN TROLL MISC
+                  "created_at" : "YYYY-MM-DD hh:mm:ss", # contact created date
+                  "updated_at" : "YYYY-MM-DD hh:mm:ss", # contact last-updated date
+                  "notes" : "my-note"     # optional contact-notes
+               },
+               ...
+            ]
+         }
+
+
+Examples for contact-commands:
+
+   # login setting cookie in HTTP-header storing: handle, sessioncode
+   login.php?quick_mode=1&userid=user&passwd=userpassword
+
+   # retrieve all contacts
+   quick_do.php?obj=contact&cmd=list
+
+
+#-------- (3f) Objects - "wroom" ----------------------------------------------
+
+Purpose:
+
+   The quick-suite for the wroom-object allows to
+
+      - retrieve game-offers from waiting-room;
+        corresponding pages: "waiting_room.php"
+
+      - join & delete game-offers from waiting-room;
+        corresponding pages: "join_waitingroom_game.php"
+
+      - create new game-offers in waiting-room;
+        corresponding pages: "new_game.php"
+
+Request:
+
+   quick_do.php?obj=wroom&cmd=<COMMAND>&wrid=<WROOM_ID>
+
+   quick_do.php?obj=wroom&cmd=list&with=<WITH>&lstyle=<LIST_STYLE>
+
+Options:
+
+   <COMMAND> = "list" | "info" | "delete" | "join" | "new_game"
+
+   <WROOM_ID> = id of waiting-room-entry
+
+   <WITH> = optional with-option to deep-load recursive data (see commands)
+
+   <LIST_STYLE> = see list-style in section (2d)
+
+
+Commands:
+
+   # NOT IMPLEMENTED: to-specify (TODO)
+   "list" : returns list of suitable game-offers from waiting-room
+      - required opts: VIEW
+      - optional opts: USER_ID, LIST_STYLE, WITH
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN]
+
+      - Result (JSON) = // also see specs/db/table-Waitingroom.txt
+
+         {
+            "list_object" : "wroom",
+            "list_size" : 3,
+            "list_offset" : 0,
+            "list_limit" : 0,
+            "list_order" : "", # TODO order of list + direction '+|-' (field-names, comma-separated), ""=standard-order
+            "list_result" : [
+               {
+                  "id" : 123, # waiting-room-id
+               },
+               ...
+            ]
+         }
+
+   # NOT fully IMPLEMENTED: to-impl (calc-game-settings)
+   "info" : returns information on single game-offer from waiting-room
+      - required opts: WROOM_ID
+      - optional opts: WITH
+
+      - WITH-option:
+         - 'user_id' : additionally return user_id-data (handle + name) for message correspondent
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN]
+
+      - Result (JSON) = // also see specs/db/table-Waitingroom.txt
+         {
+            "id" : 1,          # waitingroom-id
+            "user" : {
+               "id" : 111,          # user-id of sender, 0=server-message
+               # the following fields only if WITH-option contain 'user_id'
+               "handle" : "user1",  # USER_HANDLE
+               "name" : "name1",    # user name
+               "country" : "xe",    # country-code
+               "rating" : "5k (+46%)",            # DGS rating | "" (=no rating)
+               "rating_elo" : "1643.88952636719", # DGS elo-rating | "" (=no rating)
+            },
+            "created_at" : "YYYY-MM-DD hh:mm:ss", # creation-date of waitingroom-entry
+            "count_offers" : 3,      # remaining number of offers with same characteristics
+            "comment" : "fast game", # comment for game-offer
+
+            # game_settings
+            "game_type" : "GO",        # game-type: GO,TEAM_GO,ZEN_GO
+            "game_players" : "1:1",    # multi-player-game setup: "N:M", or empty for game-type=GO
+            "handicap_type" : "conv",  # see HTYPE_... in 'include/game_functions.php':
+                                       # conv, proper, nigiri, double, black, white, auko_sec, auko_opn, div_ykic, div_ikyc
+                                       #
+                                       # conv    = conventional handicap (like in GUI)
+                                       # proper  = proper handicap (like in GUI)
+                                       # nigiri  = nigiri
+                                       # double  = double-game (one as black, one as white)
+                                       # black   = game-inviter takes black
+                                       # white   = game-inviter takes white
+                                       #
+                                       # Fair-komi handicap-types:
+                                       # - auko_sec = fair-komi: secret auction komi
+                                       # - auko_opn = fair-komi: open auction komi
+                                       # - div_ykic = fair-komi: divide&choose: you choose komi, i choose color
+                                       # - div_ikyc = fair-komi: divide&choose: i choose komi, you choose color
+            "shape_id" : 0,            # shape-id > 0 if game was started as shape-game
+            "shape_snapshot" : "",     # shape-snapshot
+
+            "rated" : 1,               # 0=unrated, 1=rated
+            "ruleset" : "JAPANESE",    # ruleset: JAPANESE | CHINESE
+            "size" : 19,               # board-size
+            "komi" : 6.5,              # komi
+            "jigo_mode" : "KEEP_KOMI", # jigo-mode for adjusting-komi: KEEP_KOMI, ALLOW_JIGO, NO_JIGO
+            "handicap" : 0,            # handicap-stones
+            "handicap_mode" : "FREE",  # STD=standard-handicap, FREE=free-handicap
+
+            "adjust_komi" : 0.0,       # komi-adjustment
+            "adjust_handicap" : -2,    # handicap-adjustment
+            "min_handicap" : 0,        # min. number of handicap-stones
+            "max_handicap" : 21,       # min. number of handicap-stones
+
+            "time_weekend_clock" : 1,  # 1=time-running on weekend, 0=otherwise
+            "time_mode" : "CAN",       # time-mode: FIS=Fischer-time, JAP=japanese-time, CAN=canadian-time
+            "time_limit" : "C: 14d + 15d / 8", # initial time-settings for game (like in waiting-room),
+                                               # see section (6b) "TimeLimit-Formats"
+            "time_main" : 210,         # time-limit main-time [1 unit = 1 hour, 15 hour = 1 DGS-day]
+            "time_byo" : 225,          # time-limit byo-time [1 unit = 1 hour, 15 hour = 1 DGS-day]; extra-time for Fischer-time
+            "time_periods" : 8,        # time-limit byo-periods: periods (for JAP), stones (for CAN), unused (=0, for FIS)
+
+            "restrictions" : "",       # empty = no restrictions (offer can be joined); non-empty = info-string with restrictions
+            "opp_started_games" : 0,   # number of games already started with opponent
+            "calc_type" : 1,           # quality of setings: 1=probable-setting (conv/proper depends on rating), 2=fix-calculated
+            "calc_color" : "black",    # probable/fix color of logged-in user: double | fairkomi | nigiri | black | white
+            "calc_handicap" : 3,       # probable/fix handicap
+            "calc_komi" : 6.5,         # probably/fix komi
+         }
+
+   "delete" : deletes own game-offer from waiting-room
+      - required opts: WROOM_ID
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN]
+         - waitingroom_game_not_found : unknown waiting-room entry
+         - waitingroom_delete_not_own : unauthorised delete, you can only delete your own waiting-room entries
+
+   "join" : joins game-offer from waiting-room
+      - required opts: WROOM_ID
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN]
+         - not_allowed_for_guest : guests are not allowed to join
+         - waitingroom_game_not_found : unknown waiting-room entry
+         - max_games : joining user has already too many started games running
+         - max_games_opp : the user from the game-offer has already too many started games running
+         - waitingroom_own_game : you can not join your own waiting-room game-offer
+         - waitingroom_not_in_rating_range : your rating is not within the requested range of the game-offer
+         - waitingroom_not_enough_rated_fin_games : you have not finished enough rated games
+         - waitingroom_not_same_opponent : waiting-room restriction on joining by same-opponent is violated
+         - no_initial_rating : handicap-type of game-offer requires a rating
+         - internal_error : inconsistency found in game-offer -> contact admin
+
+   # NOT IMPLEMENTED: to-specify (TODO)
+   "new_game" : create new game-offer in waiting-room
+
+      - Notes:
+         - only one "view" (combining simple/expert/fair-komi/mpg in one)
+
+
+Examples for wroom-commands:
+
+   # login setting cookie in HTTP-header storing: handle, sessioncode
+   login.php?quick_mode=1&userid=user&passwd=userpassword
+
+   # retrieve all waiting-room-entries
+   quick_do.php?obj=wroom&cmd=list
+
+   # retrieve info about single waiting-room-entry
+   quick_do.php?obj=wroom&cmd=info&wrid=123&with=user_id
+
+   # deletes waiting-room game
+   quick_do.php?obj=wroom&cmd=delete&wrid=123
+
+   # joins waiting-room game
+   quick_do.php?obj=wroom&cmd=join&wrid=123
+
+
+#-------- (3g) Objects - "bulletin" -------------------------------------------
+
+Purpose:
+
+   The quick-suite for the bulletin-object allows to
+
+      - retrieve bulletins, mark bulletin as read;
+        corresponding pages: "list_bulletins.php"
+
+Request:
+
+   quick_do.php?obj=bulletin&cmd=<COMMAND>&bid=<BULLETIN_ID>
+
+   # list
+   quick_do.php?obj=bulletin&cmd=list&with=<WITH>&lstyle=<LIST_STYLE>
+
+Options:
+
+   <COMMAND> = "list" | "mark_read"
+
+   <BULLETIN_ID> = list of comma-separated bulletin-ids
+
+   <WITH> = optional with-option to deep-load recursive data (see commands)
+
+   <LIST_STYLE> = see list-style in section (2d)
+
+
+Commands:
+
+   "list" : returns list of unread bulletins
+      - optional opts: LIST_STYLE, WITH
+
+      - WITH-option:
+         - 'user_id' : additionally return user_id-data (handle + name) for author
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN]
+
+      - Result (JSON) = // also see specs/db/table-Bulletin.txt
+         {
+            "list_object" : "bulletin",
+            "list_size" : 2,
+            "list_offset" : 0,
+            "list_limit" : 0,
+            "list_order" : "", # TODO order of list + direction '+|-' (field-names, comma-separated), ""=standard-order
+            "list_result" : [
+               {
+                  "id" : 123, # bulletin-id
+                  "target_type" : "ALL",  # target-type: ALL,TD,TP,UL,MPG
+                  "status" : "SHOW",      # status: NEW,PENDING,REJECTED,SHOW,ARCHIVE,DELETE
+                  "category" : "ADM_MSG", # category: MAINT,ADM_MSG,TOURNEY,TNEWS,FEATURE,PRIV_MSG,AD
+                  "flags" : "",           # flags (comma-separated): ADM_CREATED, USER_EDIT
+                  "time_published" : "YYYY-MM-DD hh:mm:ss", # publish-time
+                  "time_expires" : "YYYY-MM-DD hh:mm:ss",   # expire-time
+                  "time_updated" : "YYYY-MM-DD hh:mm:ss",   # last-changed-time
+                  "author" : {
+                     "id" : 111,          # user-id of author
+                     # the following fields only if WITH-option contain 'user_id'
+                     "handle" : "user1",  # USER_HANDLE
+                     "name" : "Name1",    # user name
+                  },
+                  "tournament_id" : 0,    # tournament-id
+                  "game_id" : 0,          # game-id
+                  "hits" : 3,             # view-count
+                  "subject" : "title",
+                  "text" : "text",
+                  "read" : 0,             # 0=unread, 1=read
+               },
+               ...
+            ]
+         }
+
+   "mark_read" : mark bulletin(s) as read
+      - required opts: BULLETIN_ID
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN]
+
+
+Examples for bulletin-commands:
+
+   # login setting cookie in HTTP-header storing: handle, sessioncode
+   login.php?quick_mode=1&userid=user&passwd=userpassword
+
+   # retrieve unread bulletins
+   quick_do.php?obj=bulletin&cmd=list&with=user_id
+
+   # mark unread bulletin(s)
+   quick_do.php?obj=bulletin&cmd=mark_read&bid=7,11
+
+
+
+#-------- (4) Supporting Tools ------------------------------------------------
+
+#-------- (4.SGF) SGF-download "sgf.php" --------------------------------------
+
+Purpose:
+
+   The page "sgf.php" is used to download a DGS-game in SGF-format.
+   Internally DGS uses a different format and because of the turn-based nature
+   of the server not all DGS-game parameters fit into a SGF-file.
+
+Request:
+
+   sgf.php?gid=<GAME_ID>&owned_comments=<CMODE>&mpg=<MPG>&quick_mode=<QMODE>&inline=<INLINE>&no_cache=<CACHE>&bulk=<BULK>
+
+Important Notes:
+
+   * If you are not logged-in (to set session-cookie authenticating a user),
+     ALL dates are given in UTC-timezone!
+
+   * If you are not logged in (no session cookies set),
+     then you only have access to public comments.
+     No private comments are available (option <CMODE> = 1 has no effect).
+
+   * Not all information from DGS is exported into the SGF.
+     For example, the time-information can not be exported in the SGF,
+     because it could exceed the value-range (in seconds) interpreted
+     by some SGF-clients.
+
+Options:
+
+   <GAME_ID> = integer  ; REQUIRED option
+      - game-id referencing game on DGS to download SGF from
+
+   <CMODE> = 0 | 1 | N  ; default = 0
+      - 0 = return only public comments
+      - 1 = try to return private comments (for players only),
+        including private notes on game
+      - N = return NO comments or notes at all
+
+   <MPG> = int          ; default = 0, flags for multi-player-game only
+      - 1 (bit 0) = don't include user-info on each move-node
+
+   <QMODE> = 0 | 1      ; default = 0
+      - 0 = exit on error (default)
+      - 1 = ignore errors
+
+   <INLINE> = 0 | 1     ; default = 0
+      - 0 = use Content-Disposition type of "attachment", so that browser asks
+        what to do after download complete. This was required for several mobile
+        devices, that had no support for "inline"-disposition.
+      - 1 = use Content-Disposition type of "inline" to directly start assigned
+        application, which means that after the browser downloads it could directly
+        start a SGF-viewer.
+
+   <CACHE> = 0 | 1      ; default = 0
+      - 0 = caching enabled: +5 min expiration
+      - 1 = disable caching (expire-header adjusted accordingly)
+
+   <BULK> = 0 | 1       ; default = 0
+      - 0 = use standard filename-pattern for download:
+        "<white_user>-<black_user>-<gid>-YYYYMMDD.sgf"
+        Example:
+            "jug-stex-415456-20090327.sgf"
+
+      - 1 = use special filename-pattern;
+        omit handicap (if =0) and omit result if unfinished game:
+        "DGS-<gid>_YYYY-MM-DD_<rated=R|F><size>(H<handi>)K<komi>(=<result>)_<white>-<black>.sgf"
+        Example:
+            "DGS-537452_2010-04-11_R9H3K0,5=B0,5_pjo-Testter.sgf"
+            "DGS-557175_2010-04-13_F9K1,5=W29,5_Stanberry-Tim1tim2tim3.sgf"
+
+
+Response (SGF-properties):
+
+   This paragraph lists all exported SGF-properties by the DGS-server
+   in alphabetical order:
+
+      # SGF-standard properties:
+      AB, AP, B, BR, BT, BW, C, DT, FF, GC, GM, GN, HA, KM, MA, MN, N, OT, PB, PC,
+      PL, PW, RE, RU, SO, SZ, TB, TW, W, WT
+
+      # DGS-non-standard properties:
+      XM
+
+   # exported DGS-properties: XM
+
+   ID    Description          type        property value
+   ----  -------------------  ----------- --------------------------------------
+   XM    move_id              game-info   see specs/quick_suite.txt (3a)
+
+   Example of DGS-exported SGF with some format descriptions:
+
+      # standard-SGF-properties are not documented here,
+      # see SGF[4]-properties: http://www.red-bean.com/sgf/proplist_ff.html
+      #
+      # Note: this example only lists the properties in the order used,
+      #       but the listing does not show a valid SGF-format
+
+      FF[4]
+      GM[1]
+      CA[utf-8]                        # charset (optional)
+      AP[DGS:1.0.15]                   # DGS-version
+      PC[Dragon Go Server: http://www.dragongoserver.net/]
+      DT[2007-04-21,2007-05-19]        # start-date,end-date of game
+      GN[Ba_alza-jug-310100-20070519]  # filename of SGF (see <BULK>-option above)
+      SO[http://www.dragongoserver.net/game.php?gid=310100]    # source with URL
+      PB[JUG (jug)]
+      PW[Ba_alza (Ba_alza)]
+      BR[6k]
+      WR[6k]
+
+      # Team-Players: only for multi-player-game, space-separated
+      BT[jug]
+      WT[Ba_alza]
+
+      # non-standard property with "move_id" required for quick-suite (3a)
+      # providing a "context" for playing the next move
+      XM[245]
+
+      # free-text game-comment (normally not indented)
+      # - "White|Black End Rating:" only included for finished game
+      GC[Game ID: 310100
+         Game Type: Go (1:1)           # values: GO (1:1) | TEAM_GO (N:M) | ZEN_GO (N)
+         Rated: Y                      # values: Y | N
+         Note: game-result set by admin   # Note-lines 0..n
+
+         White Start Rating: 7k (-29%) - ELO 1371
+         Black Start Rating: 8k (-18%) - ELO 1282
+         White End Rating: 6k (-4%) - ELO 1496
+         Black End Rating: 6k (-2%) - ELO 1497
+
+         # only for shape-game:
+         Shape #3 (W-First): Sunjang Baduk
+
+         # only for multi-player-game (Team-/Zen-Go)
+         Game Players (Order. Color: Name (Handle), Current Rating):
+            1. B JUG (jug), 6k (-2%) - ELO 1497             # group:  B | W | BW
+
+            1. W Ba_alza (Ba_alza), 6k (-4%) - ELO 1496     # player: Name (Handle), current rating
+         ]
+
+      OT[90 days + 1 day per move and 10 extra periods]
+      RU[Japanese]                     # ruleset: Japanese | Chinese
+      SZ[19]
+      KM[6.5]
+      HA[3]                            # handicap (omitted prop if no handicap)
+      RE[B+7.5]                        # result only for finished game
+
+      # shape-game-setup (with shape-info-comment)
+      AB[aa][bb][cc]                   # Black setup stones for shape-game
+      AW[dd][ee][ff]                   # White setup stones for shape-game
+      GC[Shape #3 (W-First): Sunjang Baduk              # shape-info of shape-game with URL to view-shape
+      http://www.dragongoserver.net/view_shape.php?shape=3]
+                                       # (implicitly) enforcing new SGF-node on next-property with ';'-prefix
+
+      # game-moves (with comments)
+      # - prefix '[Handle]' for multi-player-game added on each move (if not deactivated by MPG-option)
+      AB[cc][ee][gg]                   # handicap stones (optional prop)
+      MN[1]                            # correct move-number
+      B[qd]
+      C[onegaishimasu]
+      W[dc] ...
+
+      # pass-sequence
+      ;W[]
+      ;B[]
+      ;W[]
+      N[W SCORE]                       # optional prop
+
+      # switch color (optional prop)
+      # - may happen after passes->score->resume play
+      # - values: B | W
+      PL[B]
+
+      # change move-number (optional prop), may occur after passes->score->resume
+      MN[217]
+
+      # only in scoring-step: marked stones
+      MA[er][ep] ...
+
+      # remaining properties only for finished game containting result-props
+      N[RESULT]                        # optional prop
+      TB[mp][mo] ...
+      TW[qk][il] ...
+
+      # free-text with game-result (normally not indented)
+      C[Thanks for the game
+
+         White: 47 territories + 9 prisoners + 6.5 komi = 62.5
+         Black: 70 territories + 0 prisoner = 70
+         Result: B+7.5
+
+         Notes - JUG:                  # only for logged-in user (optional)
+         my private game notes]
+
+Errors:
+
+   * SGF Errors:
+      - all errors of: [E-LOGIN], [E-GEN]
+      - unknown_game : invalid game
+
+Examples:
+
+   # login setting cookie in HTTP-header storing: handle, sessioncode
+   login.php?quick_mode=1&userid=user&passwd=userpassword
+
+   # download SGF (open browser-attached SGF-viewer)
+   sgf.php?gid=557175&owned_comments=1&inline=1
+
+   # download SGF (e.g. for robot, no comments)
+   sgf.php?gid=557175&owned_comments=N&quick_mode=1&no_cache=1
+
+References:
+
+   - see also "sgf.php" and "include/sgf_builder.php"
+
+   - SGF[4]-specs: http://www.red-bean.com/sgf/index.html
+   - SGF[4]-properties: http://www.red-bean.com/sgf/proplist_ff.html
+
+
+#-------- (4.QST) Quick-Status "quick_status.php" -----------------------------
+
+Purpose:
+
+   The page "quick_status.php" is used to return some of the information
+   from the corresponding status-page "status.php":
+
+      - retrieve a list of unread bulletins
+
+      - retrieve a list of private messages (marked to be shown on status-page),
+        showing messages from NEW- & REPLY-folder
+
+      - retrieve a list of games the specified user is next to move in
+
+      - retrieve a list of multi-player-games to manage
+
+Request:
+
+   quick_status.php?version=<VERSION>&userid=<USER_HANDLE>&passwd=<PASSWORD>&no_cache=<CACHE>&order=<ORDER>
+
+Important Notes:
+
+   * For DGS version >= 1.0.15:
+     - You must be logged-in (to set session-cookie authenticating a user)
+     - Login is possible per cookie-login using 'login.php' or by the less safe method
+       providing user and password as URL-arguments 'userid' and 'passwd'
+     - If you are not logged-in you will receive an error 'invalid_user'
+
+   * For DGS version >= 1.0.15:
+     With version 1.0.15 the quick-status page has an additional progressive block-specific caching.
+     This is done to reduce the server-load and to enforce some form of quota
+     without the need of changing each client to react on quota-exceedings.
+
+     There also is the normal browser-caching, see also option <CACHE> below.
+     The caching describe in this note is something different from that and will only kick-in
+     when the browser does not take the data from its own cache (and the server is asked).
+
+     For testing purpose on test-servers, the progressive block-specific caching can be deactivated.
+     For the live-server disabling is not possible. See also option <CACHE> below.
+
+     The following "writing-operations" will invalidate the QST-cache for the respective users:
+
+         * Operations are covered by all interfaces: web-site, quick-play and quick-do-suite
+
+         * status-games block is invalidated on (for web-site, quick-play and quick-do-suite):
+            - start a game by joining waiting-room-game or accepting invitation or started MP-game
+            - finish a running game by user or timeout
+            - delete a running game by user or admin
+            - move in a running game (play, resign, delete, pass, score)
+            - save change during fair-komi negotation
+            - changing the game-priority for ordering status-games
+
+         * private-messages block is invalidated on:
+            - new message of single and bulk type for sender and receivers
+            - read message (moving it away from NEW-folder)
+            - move message into different folder
+
+         * bulletins block is invalidated on:
+            - mark bulletin as read
+
+         * multi-player-games block is invalidated on:
+            - accept or reject invitation
+            - start MP-game
+
+     [INTERNAL NOTE:
+         The invalidation is done by appending a "CLEAR <block>" to an existing cache-file.
+         The values for "<block>" are B=bulletin, G=games, M=messages, MPG=MP-games.
+         See also QST_CACHE_.. consts.
+     ]
+
+     It is recommended, that the quick-status page should not be called more than once per minute.
+     If a client does that regardless AND no specific block in the cache was invalidated,
+     the following warning (with 'userid' replaced) is prepending the data, indicating that the
+     data is taken from the cache:
+
+        [#Warning: excessive_usage; quick_status.returning_cached_data(userid).see_faq[http://www.dragongoserver.net/faq.php?read=t&cat=15#Entry302]]
+
+     Each block of data (bulletins, messages, status-games, multi-player-games)
+     has its own cache for a specific user and data-block, and has its own minimum
+     request-interval:
+
+         - bulletins           : 15 min
+         - messages            : 15 min
+         - status-games        :  1 min, progressive if data unchanged, max. 15 min
+         - multi-player-games  : 15 min
+
+     If a client requests quick-status before the min-request interval has passed,
+     the according block-specific data is returned from a cache if it has not yet
+     expired.
+
+     For the status-games data-block a progressive expiring is in place.
+     It starts with a waiting-time of one minute. If the client asks after one minute elapsed,
+     the status-games are loaded again (before one minute the data from the cache is taken).
+     If the newly loaded status-games show no difference to the previous data-block,
+     the waiting-time for the next interval is doubled.
+
+     In summary, the client always receives a result, but the server decides if it's taken
+     from the cache or database reflecting reality. The client is obliged to resonsibly
+     choose a suitable request-interval. And even though the minimum is one minute, do not
+     just use it because you can. Please read the following FAQ-entry before you choose:
+
+        "How should the resources provided by DGS be used responsibly?"
+        see http://www.dragongoserver.net/faq.php?read=t&cat=15#Entry302
+
+     Example of caching:
+         - B=bulletins, M=messages, G=status-games, MPG=multi-player-games
+         - B1 = data-set, B2 = data-set different from B1
+         - the request-time and data-changes are arbitrary to show the
+           progressive caching-effect for status-games and normal expire-times and quota-warnings
+
+         - 09:00:00 ask QST for 1st time -> result: B1 + M1 + G1 + MPG1
+           from database ( B1,M1,G1,MPG1 )
+           expire-time for B/M/MPG = 09:15:00, for G = 09:01:00
+
+         - 09:00:30 ask QST (request-interval too small, below 1 min)
+               -> result: [#Warning: excessive_usage...] + B1 + M1 + G1 + MPG1
+           from cache ( B1,M1,G1,MPG1 )
+           expire-time for B/M/MPG = 09:15:00, for G = 09:01:00
+
+         - 09:02:00 ask QST -> result: B1 + M1 + G2 + MPG1
+           from cache ( B1,M1,MPG1 ); from database ( G2 )
+           expire-time for B/M/MPG = 09:15:00, for G = 09:03:00  (1 min)
+
+         - 09:03:00 ask QST -> result: B1 + M1 + G2 + MPG1
+           from cache ( B1,M1,G2,MPG1 )
+           expire-time for B/M/MPG = 09:15:00, for G = 09:05:00  (doubled to 2 min because no change)
+
+         - 09:05:00 ask QST -> result: B1 + M1 + G2 + MPG1
+           from cache ( B1,M1,G2,MPG1 )
+           expire-time for B/M/MPG = 09:15:00, for G = 09:09:00  (doubled to 4 min because no change)
+
+         - 09:09:00 ask QST -> result: B1 + M1 + G2 + MPG1
+           from cache ( B1,M1,G2,MPG1 )
+           expire-time for B/M/MPG = 09:15:00, for G = 09:17:00  (doubled to 8 min because no change)
+
+         - 09:15:00 ask QST -> result: B1 + M2 + G2 + MPG1
+           from cache ( G2 ); from database ( B1,M2,MPG1 )
+           expire-time for B/M/MPG = 09:30:00, for G = 09:17:00
+
+         - 09:20:00 ask QST -> result: B1 + M2 + G3 + MPG1
+           from cache ( B1,M2,MPG1 ); from database ( G3 )
+           expire-time for B/M/MPG = 09:30:00, for G = 09:21:00  (reset to 1 min because it changed)
+
+   * For DGS version 1.0.15:
+     quick-status version=0+1 will be deprecated and (probably) removed on next major version DGS 1.0.16.
+     When a version is deprecated, the following warning is prepending the data:
+
+         [#Warning: deprecated_version; ]
+
+
+   * For DGS version <= 1.0.14:
+     If you are not logged-in (to set session-cookie authenticating a user),
+     ALL dates are given in UTC-timezone in format "YYYY-MM-DD hh:mm:ss GMT" !
+
+   * For DGS version <= 1.0.14:
+     If you are not logged in (no session cookies set),
+     then you only have access to your status-game.
+
+     Data that requires authentication:
+     - Bulletins are not included
+     - Private messages are not included
+     - Multi-player game data is not included
+
+Options:
+
+   <VERSION> = (optional) version defining format
+      - 0 = 1 = quick-status format for DGS-release-version < 1.0.15
+         - MPG-entries (multi-player-games): not shown
+         - B-entries (unread bulletins):     not shown
+         - G-entries (status-games):         reduced field-set, different format
+         - M-entries (new messages):         different format
+
+      - 2 = quick-status format for DGS-release-version = 1.0.15
+         - current specs describe this format
+
+   <USER_HANDLE> + <PASSWORD> = string
+      - A user login is mandatory to retrieve data via quick-status.
+      - There are two ways to login:
+        - 1. login with URL-arguments userid + passwd
+        - 2. use 'login.php' to set cookies (preferred way)
+      - If no user-id is given (per argument or cookies), an error 'invalid_user' is returned.
+
+      - reference user to get status-info for
+        - USER_HANDLE is the unique user-id (handle),
+          e.g. http://www.dragongoserver.net/userinfo.php?user=guest
+
+   <CACHE> = 0 | 1 | 2      ; default = 0
+      - 0 = caching enabled: +5 min expiration
+      - 1 = disable caching (expire-header adjusted accordingly)
+      - 2 = disable browser-caching AND progressive block-specific caching (described above in "Important Notes")
+            NOTE: deactivation is not possible on the live-server, error 'invalid_args' is returned in this case
+
+   <ORDER> = (optional) sort-order for status-games
+      - '' = use default order as configured on status-page
+      - 0 = no-order (that's more gentle to the server, because less sorting)
+      - 1 = LASTMOVED = order by opponent-last-moved-date
+      - 2 = MOVES     = order by number of moves in game
+      - 3 = PRIO      = order by players priority set for game (on game-info page)
+      - 4 = TIMELEFT  = order by players remaining-time
+
+Response:
+
+   The output of the "quick_status.php" tool is a document of HTTP-Content-Type
+   "text/plain", that contains a list of lines consisting of comments, message-info
+   and game-info. The output-format follows the following syntax:
+
+      - line starting with '#' are comments in general
+      - line starting with '##' contains the format of a specific line-type,
+        different line-types with different amount of fields are possible
+      - line starting with '[#' are warnings, e.g. "[#Warning: messages_list_not_shown; ]"
+      - empty lines should be skipped
+      - other lines contain data
+      - if there are no data-lines, then the result-set is empty
+
+      - a data-line consists of comma-separated fields
+      - leading and trailing whitespaces of the fields should be ignored
+      - a field is put into single-quotes "'" when
+        a) the field-value contains either a single-quote, a space or a backslash '\', or
+        b) the corresponding field-header is surrounded by single-quotes
+      - escape-characters (single-quote, backslash) are escaped
+        with a preceeding backslash, e.g. '\\' or "\'"
+
+   The current format of data-lines in the output is (different versions are referenced in braces):
+
+      # header-line with format of unread-bulletins (only for version >= 2)
+      "## B,bulletin_id,target_type,category,'publish_time','expire_time','subject'"
+
+         bulletin_id    : bulletin-id to get info or view bulletin, e.g. "view_bulletin.php?bid=$bulletin_id"
+         target_type    : see field 'Bulletin.TargetType' in 'specs/db/table-Bulletin.txt'
+         category       : see field 'Bulletin.Category' in 'specs/db/table-Bulletin.txt'
+         publish_time   : publish-time of bulletin, defines order of bulletins
+         expire_time    : bulletin expires on expire-time (auto-read-mark)
+         subject        : bulletin title
+
+
+      # header-line with format of message-data-line (version = 2)
+      "## M,message_id,folder_id,type,'sender','subject','date'"
+
+         message_id   : message-id, e.g. http://www.dragongoserver.net/message.php?mode=ShowMessage&mid=1595525
+         folder_id    : current folder-id of message
+                        - 2 = NEW-folder
+                        - 3 = REPLY-folder
+         type         : message-type
+                        - NORMAL     = normal private message
+                        - INVITATION = invitation
+                        - DISPUTED   = disputed invitation
+                        - RESULT     = normal result message
+         sender       : sender-name, '[Server message]' for server-messages
+         subject      : message-subject
+         date         : date when message has been sent
+
+      # header-line with format of message-data-line (version < 2), though header-line not included in output
+      "## M,message_id,'sender','subject','date'"
+
+
+      # header-line with format of game-data-line (version = 2)
+      "## G,game_id,'opponent_handle',player_color,'lastmove_date','time_remaining',game_action,game_status,move_id,tournament_id,shape_id,game_type,game_prio,'opponent_lastaccess_date',handicap"
+
+         game_id         : game-id, e.g. http://www.dragongoserver.net/game.php?gid=317416
+         opponent_handle : user-id (handle) of users opponent
+         player_color    : B | W = current color of player to move
+         lastmove_date   : date of last-move in format "YYYY-MM-DD hh:mm:ss[ GMT]" (timezone only if not logged-in)
+         time_remaining  : time-remaining of player-to-move,
+                           - version = 2: format described in section (6b) "TimeLimit-formats" in section "Format of [TR] Time-remaining"
+                           - version < 2: format described in section (6b) "TimeLimit-formats" in section "Format of [TL] Time-limit"
+         game_action     : next action of player in game
+                           - 1 = set handicap-stones
+                           - 2 = play next move (or pass or resign)
+                           - 3 = do scoring
+                           - 10 = fair-komi-negotiation: enter komi-bid
+                           - 11 = fair-komi-negotiation: enter komi-bid or accept last komi-bid
+                           - 12 = fair-komi-negotiation: choose color
+                           - 13 = fair-komi-negotiation: wait (shouldn't happen for player-to-move)
+                           - 0 = unknown / unsupported state
+         game_status     : KOMI | PLAY | PASS | SCORE | SCORE2 = current game-status
+                           - KOMI   = fair-komi negotiation
+                           - PLAY   = normal play-mode
+                           - PASS   = one player has passed
+                           - SCORE  = first player enters scoring step
+                           - SCORE2 = other player enters scoring step (agree/disagree with score, or resume playing)
+         move_id         : required for move-context, see section (3a)
+         tournament_id   : tournament-id, e.g. http://www.dragongoserver.net/tournaments/view_tournament.php?tid=19,
+                           0 if game is not part of a tournament
+         shape_id        : shape-id, e.g. http://www.dragongoserver.net/view_shape.php?shape=3,
+                           0 if game is not a shape-game
+         game_type       : game-type and game-players info, format:
+                           - GO
+                           - TEAM_GO(N:M)
+                           - ZEN_GO(N)
+         game_prio       : priority set by user for game
+                           - value-range: -32768..32767
+                           - 0 = not-loaded (e.g. for other user) or no prio
+         opponent_lastaccess_date : date of opponents last-access-date in format "YYYY-MM-DD hh:mm:ss[ GMT]" (timezone only if not logged-in)
+         handicap        : number of handicap-stones
+
+      # game-data-lines without header-line for status-games (version < 2), though header-line not included in output
+      "'G', game_id, 'opponent_handle', player_color, 'lastmove_date', 'time_remaining'"
+
+         time_remaining  : time-remaining of player-to-move (different format to version=2),
+                           - version = 2: see above
+                           - version < 2: format described in section (6b) "TimeLimit-formats" in section "Format of [TL] Time-limit"
+
+
+      # header-line with format of multi-player-game-data-line (only for version >= 2)
+      "## MPG,game_id,game_type,ruleset,size,lastchanged_date,ready_to_start"
+
+         game_id           : see game-data
+         game_type         : see game-data
+         ruleset           : JAPANESE | CHINESE
+         size              : board-size [int]
+         lastchanged_date  : date of last-change in format "YYYY-MM-DD hh:mm:ss"
+         ready_to_start    : 1 = indicates if all players joined, so the game can be started,
+                             0 otherwise
+
+   Example output:
+
+      ## B,count,bulletin_id,target_type,category,'publish_time','expire_time','subject'
+      B,1,17,ALL,MAINT,'2011-04-30 13:58:00','2011-05-30 13:58:00','very important subject'
+      ## M,message_id,folder_id,type,'sender','subject','date'
+      M,1595525,2,NORMAL,'[Server message]','Removal from tournament #123','2010-09-19 20:53:31'
+      ## G,game_id,'opponent_handle',player_color,'lastmove_date','time_remaining',game_action,game_status,move_id,tournament_id,shape_id,game_type,game_prio,opponent_lastaccess_date
+      G,317416,'fractic',B,'2007-05-27 12:21:51','J: 83d 14h (+ 1d * 10)',2,PLAY,62,0,0,'GO',0,'2007-05-27 15:00:00'
+      G,320121,'ejlo',B,'2009-02-01 20:41:49','C: 1d 10h (+ 3d / 5)',2,PLAY,8,0,3,'GO',5,'2009-03-01 10:00:00'
+      G,527776,'physimatic',W,'2010-10-03 18:28:52','F: 8d (+ 12h)',3,SCORE2,285,19,0,'TEAM_GO (2:2)',-2,'2011-04-30 17:38:22'
+      ## MPG,game_id,game_type,ruleset,size,'lastchanged_date'
+      MPG,527777,TEAM_GO(3:1),CHINESE,9,'2010-10-03 16:00:00',1
+
+Errors:
+
+   * Quick-Status Errors:
+      - all errors of: [E-LOGIN], [E-GEN]
+      - no_uid : no user-id found (maybe cookies expired)
+      - unknown_game : invalid game
+      - unknown_user : unknown user-id specified
+
+Examples:
+
+   # get own quick-status: login, get new private-messages and status-games
+   login.php?quick_mode=1&userid=user&passwd=userpassword
+   quick_status.php
+
+   # get quick-status for other user
+   quick_status.php?uid=2
+   quick_status.php?user=ejlo
+
+
+#-------- (4.RSS) RSS-Feed "rss/status.php" -----------------------------------
+
+Purpose:
+
+   The information about private messages and games from the status-page
+   can also be retrieved using a RSS feed.
+
+   The main URL for the RSS-feed is:
+
+      http://www.dragongoserver.net/rss/status.php
+
+   Information returned in RSS-feed about status-games:
+
+      - opponent-name
+      - link to game on DGS-website
+      - game-id
+      - color
+      - last move
+      - last-changed-date
+      - link to move in game on DGS-website
+
+   Errors:
+      - all errors of: [E-LOGIN], [E-GEN]
+
+Example of usage:
+
+   # 1. let the server identify you by your cookies:
+   http://www.dragongoserver.net/rss/status.php
+
+   # 2. Ask for an authentification:
+   http://www.dragongoserver.net/rss/status.php?authid=guest
+
+   # 3. Force your complete identification:
+   http://www.dragongoserver.net/rss/status.php?userid=guest&passwd=guest
+
+
+#-------- (4.WAP) WAP-Feed "wap/status.php" -----------------------------------
+
+Purpose:
+
+   The information about private messages and games from the status-page
+   can also be retrieved using a WAP feed.
+
+   The main URL for the WAP-feed is:
+
+      http://www.dragongoserver.net/wap/status.php
+
+   Information returned in RSS-feed about status-games: see RSS-feed
+
+   Errors:
+      - all errors of: [E-LOGIN], [E-GEN]
+
+Example of usage:
+
+   # 1. let the server identify you by your cookies:
+   http://www.dragongoserver.net/wap/status.php
+
+   # 2. Ask for an authentification:
+   http://www.dragongoserver.net/wap/status.php?authid=guest
+
+   # 3. Force your complete identification:
+   http://www.dragongoserver.net/wap/status.php?userid=guest&passwd=guest
+
+
+#-------- (4.QPL) Quick-Play "quick_play.php" ---------------------------------
+
+Purpose:
+
+   The former quick-play page "quick_play.php" allows to play a game cycle
+   from 2nd move on till before the first pass, and no scoring-steps included.
+
+   Clocks, prisoners and ko are handled in the same way the web-site would do.
+
+   You can only use "quick_play.php" to answer a move WITH coordinates
+   by a move WITH coordinates. This excludes all particular steps of the game
+   like placing handicap stones, passing, resigning and scoring.
+   Use the conventionnal manual Dragon interface (web-site) to resolve
+   these steps, or use the new approach.
+
+   This page will be replaced by: (3a) game-object using "quick_do.php" page.
+
+Request:
+
+   quick_play.php?gid=<GAME_ID>&handle=<USER_HANDLE>&sgf|board_prev=<MOVE>&sgf|board_move=<MOVE>&color=<COL>&message=<MSG>
+
+Options:
+
+   <GAME_ID> = integer
+      - game-id
+
+   <USER_HANDLE> = string
+      - user-id
+
+   <MOVE> = string
+      - arg 'sgf_prev'   : the previous move coords (=the stone marked with a circle on the web-site) in SGF-format
+      - arg 'sgf_move'   : the move coords you want to play in SGF-format, e.g. 'aa'
+
+      - arg 'board_prev' : the previous move coords (=the stone marked with a circle on the web-site) in label-format
+      - arg 'board_move' : the move coords you want to play in label-format, e.g. 'a19'
+
+      - Notes:
+         - The arguments '.._prev' and '.._move' could be either 'sgf' or 'board' (=label) coordinates independently.
+         - if both are given 'sgf_..' and 'board_..' coordinate arguments,
+           then the 'sgf'-version takes precedence
+
+   <COLOR> = B | W
+      - color to play (W or B). This is your color.
+        The same as returned by the quick-status page.
+
+    <MESSAGE> = string
+      - optional field containing a move message. Take note, that for long texts
+        you should consider using a HTTP-POST instead of a HTTP-GET to transfer your data.
+
+
+Response:
+
+   "Ok" on success
+
+   - Errors:
+      - all errors of: [E-LOGIN], [E-GEN], [E-GAME], [E-GAMEMOVE]
+
+
+Example:
+
+   # login setting cookie in HTTP-header storing: handle, sessioncode
+   login.php?quick_mode=1&userid=user&passwd=userpassword
+
+   # retrieve list of games to play in
+   quick_status.php
+
+   # download game with moves in SGF-format (also see Example in section (3a))
+   sgf.php?gid=12345&owned_comments=1&quick_mode=1
+
+   # use quick-play to do your moves
+   quick_play.php?gid=12345&handle=user&board_prev=a19&board_move=t1&color=W&message=eat_this
+     or
+   quick_play.php?gid=12345&handle=user&sgf_prev=aa&board_move=tt&color=W&message=eat_this
+
+
+#-------- (5) Errors ----------------------------------------------------------
+
+All errors are given in order of appearance following flow in source-code
+for specific actions.
+
+Errors:
+
+   * [E-LOGIN] Login Errors:
+      - not_logged_in : user is not logged in
+      - wrong_userid : unknown user-id provided for login
+      - wrong_password : wrong password to login given user
+      - cookies_disabled : no cookies set with user-id and login-session
+      - fever_vault : login quota exceeded
+      - login_denied : login of user denied by admin
+      - ip_blocked_guest_login : IP-range is blocked for login as guest-user
+
+   * [E-GEN] General Errors:
+      - server_down : server in maintenance-mode
+      - invalid_command : invalid command for quick-suite
+      - invalid_args : missing or invalid arguments given
+      - unknown_entry : entry identified by id could not be found
+      - mysql_query_failed : database query failed
+      - mail_failure : sending mail for notification failed (e.g. for quota-exceeded)
+      - not_allowed_for_guest : guests are not allowed to use some of quick-suite pages
+
+   * [E-GAMECREATE] Game Creation Errors:
+      - unknown_ruleset : unknown ruleset (known: JAPANESE, CHINESE)
+      - handicap_range : invalid handicap specified
+      - komi_range : invalid komi specified
+      - invalid_snapshot : snapshot for shape-game is invalid
+      - invalid_snapshot_char : invalid character to represent shape-snapshot used
+      - mismatch_snapshot : shape-game inconsistency with snapshot detected
+      - no_initial_rating : player needs rating for required handicap-type
+      - time_limit_too_small : given time is too small
+
+      - illegal_position : illegal position detected on loading game-board
+      - unknown_game : game-data can not be found
+      - invited_to_unknown_game : game invited to is unknown to system
+      - game_already_accepted : game has already been accepted, probable race-condition
+      - wrong_dispute_game : players do not match with dispute-game
+      - wrong_players : players do not match with game-request
+      - mysql_start_game : database-error on starting game
+      - mysql_data_corruption : data is corrupted -> contact admin
+      - feature_disabled : feature (probably tournament) is disabled
+      - internal_error : data is inconsistent -> contact admin
+
+   * [E-GAME] Game Errors:
+      - unknown_game : invalid game
+      - game_not_started : game has not started yet (still in invitation-mode)
+      - game_finished : game is already finished (move/operation not possible)
+      - invalid_game_status : game is in wrong status to perform requested operation
+      - database_corrupted : player-to-move can not be determined -> contact admin
+      - already_played : 'move_id' context for current move in game is no longer valid,
+        or was wrong in the 1st place
+      - not_game_player : you are not a player of the game
+
+   * [E-GAMEMOVE] Game Move Errors:
+      - invalid_coord : invalid coordinates given
+      - move_problem : 'pass'-move only allowed for "move"-command
+      - not_your_turn : it is not your turn to move in the game;
+        (error not occuring for commands "delete", "resign")
+      - internal_error : board-data could not be loaded -> contact admin
+      - invalid_action : unknown action
+      - mysql_update_game : database query to update game failed
+      - mysql_insert_move : database query to insert move failed
+      - opponent_not_found : database corrupt regarding game-opponent -> contact admin
+      - receiver_not_found : message-receiver for notify could not be found -> contact admin
+      - mysql_insert_message : database query to insert message for notify failed
+
+   * [E-MSG] Message Errors:
+      - unknown_message : unknown message-id specified
+      - receiver_not_found : given recipient(s) can not be found
+      - folder_not_found : specified folder is unknown for current user
+      - bulkmessage_self : bulk-messages can not be sent to oneself
+
+   * [E-MSGSEND] Message Send Errors:
+      - invalid_action : failure on checking to send a message, detailed error-texts found in "error_texts"-field
+      - reply_invalid : invalid reply, because ...
+         - message can't be replied to, or no reply possible for message
+         - reply to myself is not allowed (as that doesn't show up in message-thread-view)
+         - for normal messages (can be ok for accepting/declining invitation):
+           reply only possible to NORMAL-messages, not to invitations/disputes or system-messages
+         - for accepting/declining invitation:
+           reply only possible to invitation message, not to normal messages or already disputed invitation
+         - used OTHER_UID|OTHER_HANDLE arguments to specify message-recipient,
+           recipient must be omitted as it's determined from message-sender
+      - folder_forbidden : invalid target folder used to move replied message to
+         - folder-id must be >0
+         - NEW-folder (folder-id=2) and SENT-folder (folder-id=5) are not allowed for old message to store into
+      - game_delete_invitation : error on game-deletion/decline-invitation detected,
+        nothing found to be deleted, which could mean that the invitation was already declined
+
+
+#-------- (6) Formats ---------------------------------------------------------
+
+#-------- (6a) Date-Formats ---------------------------------------------------
+
+There are three date-formats used for the quick-suite:
+
+   - "YYYY-MM-DD"
+     used when there is no time-info available, e.g. for registration-date
+
+   - "YYYY-MM-DD hh:mm:ss"
+     standard format for quick-suite for date-times
+
+
+#-------- (6b) TimeLimit-Formats ----------------------------------------------
+
+There are two major time-limit-formats used on DGS, which can appear
+in the output of the quick-suite for the three different time-systems
+in use (JAP=Japanese, CAN=Canadian, FIS=Fischer-time):
+
+   - [TL] Time-limit : static time-settings for game
+   - [TR] Time-Remaining : dynamic time of game for each player
+
+* General format:
+
+   - Format of TIME is:
+      - "Xd Yh" = X days and Y hours
+      - "0h" = zero time
+      - one of DAYS or HOURS is optional
+
+* Format of [TL] Time-limit:
+
+   - basic format is: "TYPE: MAINTIME + EXTRATIME"
+      - TYPE: J=Japanese-byo-yomi, C=Canadian-byo-yomi, F=Fischer-time
+      - one of MAINTIME or EXTRATIME is optional for types JAP/CAN
+      - for Fischer-time only EXTRATIME is optional
+      - time without EXTRATIME => game has only absolute time
+      - time without MAINTIME  => game starts right off in byo-yomi
+
+   - Format of MAINTIME is always like TIME-format (see above)
+
+   - Format of EXTRATIME for types:
+      - type=JAP: "TIME * Z" = TIME byo-yomi-time per move and Z extra periods
+      - type=CAN: "TIME / Z" = TIME byo-yomi-time per Z stones
+      - type=FIS: "TIME"     = TIME extra-time per move
+
+   - Examples:
+      - see "include/time_functions.php", method "echo_time_limit()"
+      - see "scripts/tests/TimeFormatTest.php", test-method "test_echo_time_limit()"
+
+      - "J: 7d 3h + 2d * 5"
+      - "J: 7d 3h"            (absolute)
+      - "J: 2d * 5"           (only extra-time)
+
+      - "C: 7d 3h + 9d / 3"
+      - "C: 7d 3h"            (absolute)
+      - "C: 9d / 3"           (only extra-time)
+
+      - "F: 7d 3h + 2d"
+      - "F: 7d 3h"            (absolute)
+
+
+* Format of [TR] Time-remaining:
+
+   - some basic formats:
+      - "TYPE: 0h" = all time is up for all types TYPE=J|C|F = no remaining time
+
+      - "TYPE: MAINTIME (-)"  = no extra-time defined (=absolute time)
+      - "TYPE: EXTRATIME (-)" = no main-time defined, or main-time is up and only extra-time left
+
+      - "TYPE: REM-MAINTIME (+ EXTRATIME)"   = remaining main-time left, byo-yomi not started
+      - "TYPE: STARTED-EXTRATIME (REM-EXTRATIME)" = main-time is up, byo-yomi started
+
+   - Examples:
+      - see "include/time_functions.php", method "echo_time_remaining()"
+      - see "scripts/tests/TimeFormatTest.php", test-methods:
+         - for TYPE=JAP: "test_echo_time_remaining_jap()"
+         - for TYPE=CAN: "test_echo_time_remaining_can()"
+         - for TYPE=FIS: "test_echo_time_remaining_fischer()"
+
+
+   - Format for type=JAP:
+
+      - "J: TIME (-)"            = TIME=absolute remaining-MAINTIME (no EXTRATIME); OR
+                                   TIME=remaining-EXTRATIME, main-time is up, no byo-yomi-period left
+
+      - "J: TIME (+ EXTRATIME)"  = TIME=remaining-MAINTIME + remaining-EXTRATIME, byo-yomi CAN be or CAN NOT be started;
+                                   EXTRATIME is not always original-EXTRATIME because of the possibility of added-time.
+
+      - "J: TIME (EXTRATIME)"    = TIME=remaining-time of current started byo-yomi-period + remaining-EXTRATIME
+
+      - Examples:
+         - "J: 0h"                  ; time is up
+         - "J: 10d 7h (-)",         ; absolute-remaining-maintime; OR main-time is up, in byo-yomi, no extra-time any more
+         - "J: 10d 7h (+ 2d * 7)"   ; remaining-maintime, byo-yomi not started yet
+         - "J: 1d (+ 2d * 4)"       ; remaining time of started byo-yomi-period, has still main-time (maybe by added time)
+         - "J: 1d 3h (2d * 4)"      ; remaining time of started byo-yomi-period, remaining extra-time, main-time is up
+
+   - Format for type=CAN:
+
+      - "C: TIME (-)"            = TIME=absolute remaining-MAINTIME (no EXTRATIME)
+
+      - "C: TIME (+ EXTRATIME)"  = TIME=remaining-MAINTIME + original-EXTRATIME, byo-yomi not started yet
+
+      - "C: REM-EXTRATIME (EXTRATIME)" = remaining-EXTRATIME + original-EXTRATIME, byo-yomi started
+
+      - Examples:
+         - "C: 0h"                  ; time is up
+         - "C: 10d 7h (-)"          ; absolute-remaining-maintime
+         - "C: 10d 7h (+ 6d / 4)"   ; remaining-maintime, byo-yomi not started yet
+         - "C: 1d 3h / 2 (6d / 4)"  ; remaining-extra-time, in byoyomi
+
+   - Format for type=FIS:
+
+      - "F: TIME (-)"            = TIME=absolute remaining-MAINTIME (no EXTRATIME)
+
+      - "F: TIME (+ EXTRATIME)"  = TIME=remaining-MAINTIME + original-EXTRATIME
+
+      - Examples:
+         - "F: 0h"                  ; time is up
+         - "F: 10d 7h (-)"          ; absolute-remaining-maintime
+         - "F: 10d 7h (+ 2d)"       ; remaining-main-time, with original extra-time
+
+
+#-------- (7) Classes and Files -----------------------------------------------
+
+
+This section shortly describes the framework-classes and files in use.
+For more details you may also check the source-code documentation of the classes,
+their variables and functions.
+
+   - quick_do.php:
+     Facade to quick-suite to delegate commands on objects to quick-handlers.
+
+   - include/quick/...
+     Containing all quick-handlers.
+
+
+#-------- (8) Possible Future Enhancements ------------------------------------
+# Priority (1=high, 5=low, ?=unknown) is added, e.g. Prio(1)
+
+This section outlines some ideas that came to mind regarding the quick-suite,
+but are not necessarily going to be implemented (soon or at all).
+
+
+* Prio(?): add more handlers for remaining DGS objects and operations
+
+* encoding via JSON:
+   - [quick] [site] eval-step #1 (occur for WHAT?): needs UTF8-encoded data from database :( :( :( => need proper handling of UTF8 !!!!
+   - [quick] encoding JSON: http://www.dragongoserver.net/forum/read.php?forum=10&thread=27755#29511
+
+* game-obj:
+   - handle MPG with game-players >2, handle setup for multi-player-game
+   - handle fair-komi
+   - replace_notes, add_time, set_prio
+   - list-cmd: include shapes, all views, type=running/finished uid=all
+
+* message-obj:
+   - handle send-invitation / send-dispute
+
+* user-obj:
+   - user-vacation, picture, list-cmd
+   - [quick] user-obj: get_bio-cmd: -> { bio: [ key:val, ...], ...] }
+
+* contact-obj:
+   - replace-cmd = insert_or_update
+   - delete
+
