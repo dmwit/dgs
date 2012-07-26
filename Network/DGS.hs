@@ -30,52 +30,51 @@ module Network.DGS (
     -- * Logging in
     login,
 
-    -- * Listing games and messages
-    status,
-    statusUID,
-    statusUser,
-
     -- * Making a move
-    move,
     sgf,
 
     -- * Miscellaneous
-    module Network.Browser,
     development,
     production,
-    silence,
     browseDGS
 ) where
 
-import Data.List
-import Data.List.Split
-import Network.Browser
+import Control.Monad.RWS hiding (get)
+import Control.Monad.Trans
+import Data.Time
 import Network.DGS.Types
-import Network.HTTP
-import Network.URI
-import qualified Network.Browser   as B
+import Network.HTTP.Conduit
+import Network.HTTP.Types
+import Network.Socket
 import qualified Network.DGS.Types as T
+import qualified Data.ByteString.Char8      as S
+import qualified Data.ByteString.Lazy.Char8 as L
 -- }}}
 -- helpers {{{
-uri :: String -> String -> URI
-uri server path = full where
-    auth = URIAuth { uriRegName = server, uriUserInfo = "", uriPort = "" }
-    full = nullURI { uriScheme = "http:", uriAuthority = Just auth, uriPath = '/' : path }
+-- only call this with ASCII host and path parameters, please
+uri :: String -> String -> Request m
+uri host_ path_ = def { host = S.pack host_, path = S.pack ('/':path_) } where
 
-form :: RequestMethod -> (String -> a) -> URI -> [(String, String)] -> DGS a
-get  ::                  (String -> a) -> URI -> [(String, String)] -> DGS a
-post ::                  (String -> a) -> URI -> [(String, String)] -> DGS a
-form t f uri = T.DGS . fmap (f . rspBody . snd) . request . formToRequest . Form t uri
-get          = form GET
-post         = form POST
+form :: Method -> (L.ByteString -> a) -> Request DGS -> [(String, String)] -> DGS a
+get  ::           (L.ByteString -> a) -> Request DGS -> [(String, String)] -> DGS a
+post ::           (L.ByteString -> a) -> Request DGS -> [(String, String)] -> DGS a
+form t f r_ q = do
+	manager <- ask
+	now     <- liftIO getCurrentTime
+	r       <- state (\cookies -> insertCookiesIntoRequest r_ { queryString = renderQuery False (toQuery q) } cookies now)
+	resp_   <- httpLbs r manager
+	now     <- liftIO getCurrentTime
+	resp    <- state ((\(a,b) -> (b,a)) . updateCookieJar resp_ r now)
+	return . f . responseBody $ resp
 
--- | by default, HTTP's browser chatters a lot on stdout; this action turns off
--- the chatter
-silence :: DGS ()
-silence = T.DGS $ setErrHandler quiet >> setOutHandler quiet where quiet _ = return ()
+get  = form methodGet
+post = form methodPost
+
+runRWST_ :: Monad m => s -> RWST r w s m a -> r -> m a
+runRWST_ s rwst r = (\(a,_,_) -> a) `liftM` runRWST rwst r s
 
 browseDGS :: DGS a -> IO a
-browseDGS = B.browse . T.runDGS
+browseDGS = withSocketsDo . withManager . runRWST_ def . runDGS
 -- }}}
 -- servers {{{
 -- | the address of the development server, @\"dragongoserver.sourceforge.net\"@
@@ -85,7 +84,6 @@ production  :: String
 development = "dragongoserver.sourceforge.net"
 production  = "www.dragongoserver.net"
 -- }}}
--- via documented API {{{
 -- login {{{
 -- | Almost all commands require you to be logged in. Logging in does not count
 -- against your quota; one side effect is that this will report success even if
@@ -94,68 +92,27 @@ login :: String -- ^ server, e.g. 'development' or 'production'
       -> String -- ^ user name
       -> String -- ^ password
       -> DGS LoginResult
-login server username password = get resultFromString loc opts where
-    loc  = uri server "login.php"
-    opts = [("quick_mode", "1"), ("userid", username), ("passwd", password)]
+login server username password = get result loc opts where
+	loc  = uri server "login.php"
+	opts = [("quick_mode", "1"), ("userid", username), ("passwd", password)]
 
-    resultFromString s
-        | "#Error: wrong_userid"   `isInfixOf` s = T.WrongUsername
-        | "#Error: wrong_password" `isInfixOf` s = T.WrongPassword
-        | "\nOk"                       ==      s = T.LoginSuccess
-        | otherwise                              = T.LoginProblem s
--- }}}
--- status {{{
--- | get the inbox and games list of whoever is currently logged in
-status      :: String -- ^ server
-            -> DGS String
--- | get the games list of an arbitrary user
-statusUID   :: String  -- ^ server
-            -> Integer -- ^ user ID
-            -> DGS String
--- | get the games list of an arbitrary user
-statusUser  :: String  -- ^ server
-            -> String  -- ^ user name
-            -> DGS String
-
-status     server      = get id (uri server "quick_status.php") []
-statusUID  server uid  = get id (uri server "quick_status.php") [("uid", show uid)]
-statusUser server user = get id (uri server "quick_status.php") [("user", user)]
--- }}}
--- play {{{
-move :: String  -- ^ server
-     -> Integer -- ^ game ID
-     -> Bool    -- ^ playing as black? (can use exactly the value you got from 'status')
-     -> Point   -- ^ the move the opponent just made
-     -> Point   -- ^ your move
-     -> DGS String
-move server gid black old new = get id loc opts where
-    loc  = uri server "quick_play.php"
-    opts = [("gid", show gid), ("color", col), ("sgf_prev", point old), ("sgf_move", point new)]
-    col  = if black then "B" else "W"
-    point (x, y) = [pos x, pos y]
-    pos   i      = toEnum (fromEnum 'a' + fromEnum i)
+	result bs
+		| L.pack "[#Error: wrong_userid;"   `L.isPrefixOf` bs = T.WrongUsername
+		| L.pack "[#Error: wrong_password;" `L.isPrefixOf` bs = T.WrongPassword
+		| L.pack "\nOk" == bs = T.LoginSuccess
+		| otherwise           = T.LoginProblem bs
 -- }}}
 -- sgf {{{
+-- TODO: update this to take advantage of all the new multi-player game stuff
+-- from the new specs.
+--
 -- | you can only get private comments if you are logged in; if you are not
 -- logged in, this will succeed, but a request for private comments will be
 -- ignored, and you'll get an SGF with only the public comments
 sgf :: String  -- ^ server
     -> Integer -- ^ game ID
     -> Bool    -- ^ request the private comments?
-    -> DGS String
+    -> DGS L.ByteString
 sgf server gid comments = get id (uri server "sgf.php") opts where
     opts = [("gid", show gid), ("owned_comments", show . fromEnum $ comments)]
--- }}}
--- }}}
--- via (undocumented) screen scraping {{{
--- game notes {{{
--- | set whether game notes are visible for a particular game; if you are not
--- logged in, nothing happens
-noteVisibility :: String  -- ^ server
-               -> Integer -- ^ game ID
-               -> Bool    -- ^ set them to be visible?
-               -> DGS ()
-noteVisibility server gid visible = post (const ()) (uri server "game.php") opts where
-    opts = [("gid", show gid), ("hidenotes", if visible then "N" else "Y"), ("togglenotes", "Hide notes")]
--- }}}
 -- }}}

@@ -1,19 +1,31 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, MultiParamTypeClasses, TypeFamilies #-}
 module Network.DGS.Types where
 
-import Control.Monad.Trans
+import Control.Applicative
+import Control.Monad.Base
+import Control.Monad.RWS
+import Control.Monad.Trans.Control
+import Data.ByteString.Lazy
+import Data.Conduit
 import Data.Time
-import Network.Browser
 import Network.DGS.Errors
-import Network.HTTP
+import Network.HTTP.Conduit
 
--- | a convenient type synonym for HTTP's browser monad
-newtype DGS a = DGS { runDGS :: BrowserAction (HandleStream String) a } deriving (Functor, Monad, MonadIO)
+-- | a monad stack to ease the use of http-conduit
+newtype DGS a = DGS { runDGS :: DGS' a } deriving (Functor, Applicative, Monad, MonadIO, MonadThrow, MonadUnsafeIO, MonadResource, MonadReader Manager, MonadState CookieJar, MonadBase IO)
+type DGS' = RWST Manager () CookieJar (ResourceT IO)
+
+-- this code is really unreadable, but it was written by just following the
+-- types and applying the DGS/runDGS and StM/unStM isomorphisms as necessary
+instance MonadBaseControl IO DGS where
+	data StM DGS a = StM {-# UNPACK #-} !(StM DGS' a)
+	liftBaseWith f = DGS (liftBaseWith (\g -> f (\(DGS m) -> StM <$> g m)))
+	restoreM (StM v) = DGS (restoreM v)
 
 data LoginResult
 	= WrongUsername
 	| WrongPassword
-	| LoginProblem String -- ^ it's a bug in the library if one of these ever gets built
+	| LoginProblem ByteString -- ^ it's a bug in the library if one of these ever gets built
 	| LoginSuccess
 	deriving (Eq, Ord, Show, Read)
 
