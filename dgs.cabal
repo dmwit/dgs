@@ -19,15 +19,16 @@ build-type:         Simple
 library
     exposed-modules:
                     Network.DGS,
-                    Network.DGS.Game,
-                    Network.DGS.Types
+                    Network.DGS.Types,
+                    Network.DGS.Errors
 
     build-depends:  base >= 3 && < 5,
                     mtl >= 1.1,
-                    HTTP,
+                    HTTP >= 4000.2,
                     network,
                     split,
-                    array
+                    array,
+                    time
 
 source-repository head
     type:       git

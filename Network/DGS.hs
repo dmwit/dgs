@@ -50,8 +50,7 @@ module Network.DGS (
 import Data.List
 import Data.List.Split
 import Network.Browser
-import Network.DGS.Game (Game(Game))
-import Network.DGS.Types (Color, DGS, GameBoard, LoginResult, Message, MoveResult, Point)
+import Network.DGS.Types
 import Network.HTTP
 import Network.URI
 import qualified Network.Browser   as B
@@ -98,72 +97,42 @@ login server username password = get resultFromString loc opts where
     loc  = uri server "login.php"
     opts = [("quick_mode", "1"), ("userid", username), ("passwd", password)]
 
-    resultFromString s = case s of
-        "#Error: wrong_userid\n"   -> T.WrongUsername
-        "#Error: wrong_password\n" -> T.WrongPassword
-        "\nOk"                     -> T.LoginSuccess
-        _                          -> T.LoginProblem s
+    resultFromString s
+        | "#Error: wrong_userid"   `isInfixOf` s = T.WrongUsername
+        | "#Error: wrong_password" `isInfixOf` s = T.WrongPassword
+        | "\nOk"                       ==      s = T.LoginSuccess
+        | otherwise                              = T.LoginProblem s
 -- }}}
 -- status {{{
-strip :: String -> String
-strip s = read . (\s -> '"' : s ++ "\"") . take (length s - 2) . drop 1 $ s
-
-gameFromString    :: String -> Game
-messageFromString :: String -> Message
-statusFromString  :: String -> ([Message], [Game])
-
-gameFromString s = case sepBy ", " s of
-    ["'G'", gid, uid, color, date, time]             -> Game (read gid) (strip uid) (color == "'B'") (strip date) (strip time) Nothing Nothing
-    ["'G'", gid, uid, color, date, time, moves, tid] -> Game (read gid) (strip uid) (color == "'B'") (strip date) (strip time) (Just (read moves)) (Just (read tid))
-messageFromString s = case sepBy ", " s of
-    ["'M'", mid, uid, subject, date] -> T.Message (read mid) (strip uid) (strip subject) (strip date)
-statusFromString s = (messages, games) where
-    types c  = filter (isPrefixOf ('\'' : c : "', ")) (lines s)
-    games    = map gameFromString    (types 'G')
-    messages = map messageFromString (types 'M')
-
--- | get the inbox and games list of whoever is currently logged in; this will
--- return @([], [])@ if you are not logged in
+-- | get the inbox and games list of whoever is currently logged in
 status      :: String -- ^ server
-            -> DGS ([Message], [Game])
--- | get the games list of an arbitrary user; this will give the same results
--- whether or not you are logged in
+            -> DGS String
+-- | get the games list of an arbitrary user
 statusUID   :: String  -- ^ server
             -> Integer -- ^ user ID
-            -> DGS [Game]
--- | get the games list of an arbitrary user this will give the same results
--- whether or not you are logged in
+            -> DGS String
+-- | get the games list of an arbitrary user
 statusUser  :: String  -- ^ server
             -> String  -- ^ user name
-            -> DGS [Game]
+            -> DGS String
 
-status     server      = get        statusFromString  (uri server "quick_status.php") []
-statusUID  server uid  = get (snd . statusFromString) (uri server "quick_status.php") [("uid", show uid)]
-statusUser server user = get (snd . statusFromString) (uri server "quick_status.php") [("user", user)]
+status     server      = get id (uri server "quick_status.php") []
+statusUID  server uid  = get id (uri server "quick_status.php") [("uid", show uid)]
+statusUser server user = get id (uri server "quick_status.php") [("user", user)]
 -- }}}
 -- play {{{
 move :: String  -- ^ server
      -> Integer -- ^ game ID
-     -> Color   -- ^ playing as black? (can use exactly the value you got from 'status')
+     -> Bool    -- ^ playing as black? (can use exactly the value you got from 'status')
      -> Point   -- ^ the move the opponent just made
      -> Point   -- ^ your move
-     -> DGS MoveResult
-move server gid black old new = get resultFromString loc opts where
+     -> DGS String
+move server gid black old new = get id loc opts where
     loc  = uri server "quick_play.php"
     opts = [("gid", show gid), ("color", col), ("sgf_prev", point old), ("sgf_move", point new)]
     col  = if black then "B" else "W"
     point (x, y) = [pos x, pos y]
     pos   i      = toEnum (fromEnum 'a' + fromEnum i)
-
-    resultFromString s | "#Error: " `isPrefixOf` s = case drop 8 s of
-        "not_logged_in\n"       -> T.NotLoggedIn
-        "no_game_nr\n"          -> T.NoGameNumber
-        "database_corrupted\n"  -> T.DatabaseCorrupted
-        "not_your_turn\n"       -> T.NotYourTurn
-        "already_played\n"      -> T.MoveAlreadyPlayed
-        "illegal_position\n"    -> T.IllegalPosition
-    resultFromString "\nOk" = T.MoveSuccess
-    resultFromString s      = T.MoveProblem s
 -- }}}
 -- sgf {{{
 -- | you can only get private comments if you are logged in; if you are not
