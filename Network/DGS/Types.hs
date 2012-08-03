@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, MultiParamTypeClasses, TypeFamilies #-}
+{-# LANGUAGE EmptyDataDecls, GADTs, GeneralizedNewtypeDeriving, MultiParamTypeClasses, TypeFamilies #-}
 module Network.DGS.Types where
 
 import Control.Applicative
@@ -41,3 +41,15 @@ data Quota = Quota Integer UTCTime deriving (Eq, Ord, Show, Read)
 
 -- | 0-indexed x/y coordinates that start at the top left
 type Point = (Integer, Integer)
+
+-- | Phantom type to prevent the mixing of different kinds of IDs -- game IDs,
+-- tournament IDs, move IDs, user IDs, etc.
+data ID a where
+	User       :: Integer -> ID UserTag
+	Username   :: String  -> ID UserTag
+	Game       :: Integer -> ID GameTag
+	Tournament :: Integer -> ID TournamentTag
+
+data UserTag
+data GameTag
+data TournamentTag

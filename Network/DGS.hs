@@ -53,7 +53,7 @@ import qualified Data.ByteString.Lazy.Char8 as L
 -- helpers {{{
 -- only call this with ASCII host and path parameters, please
 uri :: String -> String -> Request m
-uri host_ path_ = def { host = S.pack host_, path = S.pack ('/':path_) } where
+uri host_ path_ = def { host = S.pack host_, path = S.pack ('/':path_) }
 
 form :: Method -> (L.ByteString -> a) -> Request DGS -> [(String, String)] -> DGS a
 get  ::           (L.ByteString -> a) -> Request DGS -> [(String, String)] -> DGS a
@@ -69,6 +69,7 @@ form t f r_ q = do
 
 get  = form methodGet
 post = form methodPost
+object obj cmd f opts server = get f (uri server "quick_do.php") (("obj",obj):("cmd",cmd):opts)
 
 runRWST_ :: Monad m => s -> RWST r w s m a -> r -> m a
 runRWST_ s rwst r = (\(a,_,_) -> a) `liftM` runRWST rwst r s
@@ -101,6 +102,9 @@ login server username password = get result loc opts where
 		| L.pack "[#Error: wrong_password;" `L.isPrefixOf` bs = T.WrongPassword
 		| L.pack "\nOk" == bs = T.LoginSuccess
 		| otherwise           = T.LoginProblem bs
+-- }}}
+-- list games {{{
+status = object "game" "list" id [("view","status")]
 -- }}}
 -- sgf {{{
 -- TODO: update this to take advantage of all the new multi-player game stuff
