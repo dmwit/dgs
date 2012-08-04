@@ -1,4 +1,4 @@
-{-# LANGUAGE EmptyDataDecls, GADTs, GeneralizedNewtypeDeriving, MultiParamTypeClasses, TypeFamilies #-}
+{-# LANGUAGE EmptyDataDecls, GeneralizedNewtypeDeriving, MultiParamTypeClasses, TypeFamilies #-}
 module Network.DGS.Types where
 
 import Control.Applicative
@@ -7,6 +7,7 @@ import Control.Monad.RWS
 import Control.Monad.Trans.Control
 import Data.ByteString.Lazy
 import Data.Conduit
+import Data.Text (Text)
 import Data.Time
 import Network.DGS.Errors
 import Network.HTTP.Conduit
@@ -30,9 +31,10 @@ data LoginResult
 	deriving (Eq, Ord, Show, Read)
 
 data Response a
-	= UnknownVersion Quota String -- ^ currently, only 1.0.15:13 is supported
+	= Success        Quota a      -- ^ the stars aligned; here's your answer!
+	| UnknownVersion Quota String -- ^ currently, only 1.0.15:13 is supported
 	| Problem        Quota Error  -- ^ something was wrong with your request
-	| Success        Quota a      -- ^ the stars aligned; here's your answer!
+	| NoParse                     -- ^ the server sent invalid JSON or valid JSON outside the schema it promised to deliver
 	deriving (Eq, Ord, Show, Read)
 
 -- | how many accesses you have left, and when the quota will reset to its
@@ -44,11 +46,8 @@ type Point = (Integer, Integer)
 
 -- | Phantom type to prevent the mixing of different kinds of IDs -- game IDs,
 -- tournament IDs, move IDs, user IDs, etc.
-data ID a where
-	User       :: Integer -> ID UserTag
-	Username   :: String  -> ID UserTag
-	Game       :: Integer -> ID GameTag
-	Tournament :: Integer -> ID TournamentTag
+newtype ID a = ID { getID :: Integer } deriving (Eq, Ord, Show, Read)
+newtype Username = Username { getUsername :: Text } deriving (Eq, Ord, Show, Read)
 
 data UserTag
 data GameTag

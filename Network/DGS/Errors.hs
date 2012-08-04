@@ -31,67 +31,67 @@ details (KnownError   _ s) = s
 details (UnknownError _ s) = s
 
 kind l = case l of
-	NotLoggedIn          -> [Login]
-	WrongUserid          -> [Login]
-	WrongPassword        -> [Login]
-	CookiesDisabled      -> [Login]
-	FeverVault           -> [Login]
-	LoginDenied          -> [Login]
-	IpBlockedGuestLogin  -> [Login]
-	ServerDown           -> [General]
-	InvalidCommand       -> [General]
-	InvalidArgs          -> [General]
-	UnknownEntry         -> [General]
-	MysqlQueryFailed     -> [General]
-	MailFailure          -> [General]
-	UnknownRuleset       -> [GameCreation]
-	HandicapRange        -> [GameCreation]
-	KomiRange            -> [GameCreation]
-	InvalidSnapshot      -> [GameCreation]
-	InvalidSnapshotChar  -> [GameCreation]
-	MismatchSnapshot     -> [GameCreation]
-	NoInitialRating      -> [GameCreation]
-	TimeLimitTooSmall    -> [GameCreation]
-	IllegalPosition      -> [GameCreation]
-	UnknownGame          -> [GameCreation, Game]
-	InvitedToUnknownGame -> [GameCreation]
-	GameAlreadyAccepted  -> [GameCreation]
-	WrongDisputeGame     -> [GameCreation]
-	WrongPlayers         -> [GameCreation]
-	MysqlStartGame       -> [GameCreation]
-	MysqlDataCorruption  -> [GameCreation]
-	FeatureDisabled      -> [GameCreation]
-	InternalError        -> [GameCreation, Move]
-	GameNotStarted       -> [Game]
-	GameFinished         -> [Game]
-	InvalidGameStatus    -> [Game]
-	DatabaseCorrupted    -> [Game]
-	AlreadyPlayed        -> [Game]
-	NotGamePlayer        -> [Game]
-	InvalidCoord         -> [Move]
-	MoveProblem          -> [Move]
-	NotYourTurn          -> [Move]
-	InvalidAction        -> [Move, MessageSend]
-	MysqlUpdateGame      -> [Move]
-	MysqlInsertMove      -> [Move]
-	OpponentNotFound     -> [Move]
-	ReceiverNotFound     -> [Move, MessageGet]
-	MysqlInsertMessage   -> [Move]
-	UnknownMessage       -> [MessageGet]
-	FolderNotFound       -> [MessageGet]
-	BulkmessageSelf      -> [MessageGet]
-	ReplyInvalid         -> [MessageSend]
-	FolderForbidden      -> [MessageSend]
-	GameDeleteInvitation -> [MessageSend]
+	NotLoggedIn          -> [LoginKind]
+	WrongUserid          -> [LoginKind]
+	WrongPassword        -> [LoginKind]
+	CookiesDisabled      -> [LoginKind]
+	FeverVault           -> [LoginKind]
+	LoginDenied          -> [LoginKind]
+	IpBlockedGuestLogin  -> [LoginKind]
+	ServerDown           -> [GeneralKind]
+	InvalidCommand       -> [GeneralKind]
+	InvalidArgs          -> [GeneralKind]
+	UnknownEntry         -> [GeneralKind]
+	MysqlQueryFailed     -> [GeneralKind]
+	MailFailure          -> [GeneralKind]
+	UnknownRuleset       -> [GameCreationKind]
+	HandicapRange        -> [GameCreationKind]
+	KomiRange            -> [GameCreationKind]
+	InvalidSnapshot      -> [GameCreationKind]
+	InvalidSnapshotChar  -> [GameCreationKind]
+	MismatchSnapshot     -> [GameCreationKind]
+	NoInitialRating      -> [GameCreationKind]
+	TimeLimitTooSmall    -> [GameCreationKind]
+	IllegalPosition      -> [GameCreationKind]
+	UnknownGame          -> [GameCreationKind, GameKind]
+	InvitedToUnknownGame -> [GameCreationKind]
+	GameAlreadyAccepted  -> [GameCreationKind]
+	WrongDisputeGame     -> [GameCreationKind]
+	WrongPlayers         -> [GameCreationKind]
+	MysqlStartGame       -> [GameCreationKind]
+	MysqlDataCorruption  -> [GameCreationKind]
+	FeatureDisabled      -> [GameCreationKind]
+	InternalError        -> [GameCreationKind, MoveKind]
+	GameNotStarted       -> [GameKind]
+	GameFinished         -> [GameKind]
+	InvalidGameStatus    -> [GameKind]
+	DatabaseCorrupted    -> [GameKind]
+	AlreadyPlayed        -> [GameKind]
+	NotGamePlayer        -> [GameKind]
+	InvalidCoord         -> [MoveKind]
+	MoveProblem          -> [MoveKind]
+	NotYourTurn          -> [MoveKind]
+	InvalidAction        -> [MoveKind, MessageSendKind]
+	MysqlUpdateGame      -> [MoveKind]
+	MysqlInsertMove      -> [MoveKind]
+	OpponentNotFound     -> [MoveKind]
+	ReceiverNotFound     -> [MoveKind, MessageGetKind]
+	MysqlInsertMessage   -> [MoveKind]
+	UnknownMessage       -> [MessageGetKind]
+	FolderNotFound       -> [MessageGetKind]
+	BulkmessageSelf      -> [MessageGetKind]
+	ReplyInvalid         -> [MessageSendKind]
+	FolderForbidden      -> [MessageSendKind]
+	GameDeleteInvitation -> [MessageSendKind]
 
 labels k = case k of
-	Login        -> [NotLoggedIn, WrongUserid, WrongPassword, CookiesDisabled, FeverVault, LoginDenied, IpBlockedGuestLogin]
-	General      -> [ServerDown, InvalidCommand, InvalidArgs, UnknownEntry, MysqlQueryFailed, MailFailure]
-	GameCreation -> [UnknownRuleset, HandicapRange, KomiRange, InvalidSnapshot, InvalidSnapshotChar, MismatchSnapshot, NoInitialRating, TimeLimitTooSmall, IllegalPosition, UnknownGame, InvitedToUnknownGame, GameAlreadyAccepted, WrongDisputeGame, WrongPlayers, MysqlStartGame, MysqlDataCorruption, FeatureDisabled, InternalError]
-	Game         -> [UnknownGame, GameNotStarted, GameFinished, InvalidGameStatus, DatabaseCorrupted, AlreadyPlayed, NotGamePlayer]
-	Move         -> [InvalidCoord, MoveProblem, NotYourTurn, InternalError, InvalidAction, MysqlUpdateGame, MysqlInsertMove, OpponentNotFound, ReceiverNotFound, MysqlInsertMessage]
-	MessageGet   -> [UnknownMessage, ReceiverNotFound, FolderNotFound, BulkmessageSelf]
-	MessageSend  -> [InvalidAction, ReplyInvalid, FolderForbidden, GameDeleteInvitation]
+	LoginKind        -> [NotLoggedIn, WrongUserid, WrongPassword, CookiesDisabled, FeverVault, LoginDenied, IpBlockedGuestLogin]
+	GeneralKind      -> [ServerDown, InvalidCommand, InvalidArgs, UnknownEntry, MysqlQueryFailed, MailFailure]
+	GameCreationKind -> [UnknownRuleset, HandicapRange, KomiRange, InvalidSnapshot, InvalidSnapshotChar, MismatchSnapshot, NoInitialRating, TimeLimitTooSmall, IllegalPosition, UnknownGame, InvitedToUnknownGame, GameAlreadyAccepted, WrongDisputeGame, WrongPlayers, MysqlStartGame, MysqlDataCorruption, FeatureDisabled, InternalError]
+	GameKind         -> [UnknownGame, GameNotStarted, GameFinished, InvalidGameStatus, DatabaseCorrupted, AlreadyPlayed, NotGamePlayer]
+	MoveKind         -> [InvalidCoord, MoveProblem, NotYourTurn, InternalError, InvalidAction, MysqlUpdateGame, MysqlInsertMove, OpponentNotFound, ReceiverNotFound, MysqlInsertMessage]
+	MessageGetKind   -> [UnknownMessage, ReceiverNotFound, FolderNotFound, BulkmessageSelf]
+	MessageSendKind  -> [InvalidAction, ReplyInvalid, FolderForbidden, GameDeleteInvitation]
 
 jsonName l = case l of
 	NotLoggedIn          -> "not_logged_in"
@@ -207,13 +207,13 @@ unsafeLabel s = fromMaybe (error ("unsafeLabel applied to unknown JSON error nam
 -- | Other places in the documentation refer to specific kinds of errors that
 -- can be reported by DGS.
 data Kind
-	= Login
-	| General
-	| GameCreation
-	| Game
-	| Move
-	| MessageGet
-	| MessageSend
+	= LoginKind
+	| GeneralKind
+	| GameCreationKind
+	| GameKind
+	| MoveKind
+	| MessageGetKind
+	| MessageSendKind
 	deriving (Eq, Ord, Show, Read, Bounded, Enum)
 
 -- | A comprehensive list of the types of errors that DGS will report; the
@@ -243,7 +243,7 @@ data Label
 	| NoInitialRating      -- ^ player needs rating for required handicap-type
 	| TimeLimitTooSmall    -- ^ given time is too small
 	| IllegalPosition      -- ^ illegal position detected on loading game-board
-	| UnknownGame          -- ^ 'GameCreation': game-data can not be found; 'Game': invalid game
+	| UnknownGame          -- ^ 'GameCreationKind': game-data can not be found; 'GameKind': invalid game
 	| InvitedToUnknownGame -- ^ game invited to is unknown to system
 	| GameAlreadyAccepted  -- ^ game has already been accepted, probable race-condition
 	| WrongDisputeGame     -- ^ players do not match with dispute-game
@@ -251,7 +251,7 @@ data Label
 	| MysqlStartGame       -- ^ database-error on starting game
 	| MysqlDataCorruption  -- ^ data is corrupted -> contact admin
 	| FeatureDisabled      -- ^ feature (probably tournament) is disabled
-	| InternalError        -- ^ 'GameCreation': data is inconsistent -> contact admin; 'Move': board-data could not be loaded -> contact admin
+	| InternalError        -- ^ 'GameCreationKind': data is inconsistent -> contact admin; 'MoveKind': board-data could not be loaded -> contact admin
 	| GameNotStarted       -- ^ game has not started yet (still in invitation-mode)
 	| GameFinished         -- ^ game is already finished (move/operation not possible)
 	| InvalidGameStatus    -- ^ game is in wrong status to perform requested operation
@@ -261,11 +261,11 @@ data Label
 	| InvalidCoord         -- ^ invalid coordinates given
 	| MoveProblem          -- ^ @pass@-move only allowed for @move@-command
 	| NotYourTurn          -- ^ it is not your turn to move in the game; (error not occuring for commands @delete@, @resign@)
-	| InvalidAction        -- ^ 'Move': unknown action; 'MessageSend': failure on checking to send a message, detailed error-texts found in @error_texts@-field
+	| InvalidAction        -- ^ 'MoveKind': unknown action; 'MessageSendKind': failure on checking to send a message, detailed error-texts found in @error_texts@-field
 	| MysqlUpdateGame      -- ^ database query to update game failed
 	| MysqlInsertMove      -- ^ database query to insert move failed
 	| OpponentNotFound     -- ^ database corrupt regarding game-opponent -> contact admin
-	| ReceiverNotFound     -- ^ 'Move': message-receiver for notify could not be found -> contact admin; 'MessageGet': given recipient(s) can not be found
+	| ReceiverNotFound     -- ^ 'MoveKind': message-receiver for notify could not be found -> contact admin; 'MessageGetKind': given recipient(s) can not be found
 	| MysqlInsertMessage   -- ^ database query to insert message for notify failed
 	| UnknownMessage       -- ^ unknown message-id specified
 	| FolderNotFound       -- ^ specified folder is unknown for current user

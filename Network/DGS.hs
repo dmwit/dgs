@@ -43,6 +43,7 @@ import Control.Monad.RWS hiding (get)
 import Control.Monad.Trans
 import Data.Time
 import Network.DGS.Types
+import Network.DGS.JSON
 import Network.HTTP.Conduit
 import Network.HTTP.Types
 import Network.Socket
@@ -69,7 +70,10 @@ form t f r_ q = do
 
 get  = form methodGet
 post = form methodPost
-object obj cmd f opts server = get f (uri server "quick_do.php") (("obj",obj):("cmd",cmd):opts)
+object obj cmd opts server = get
+	(maybe NoParse id . decode)
+	(uri server "quick_do.php")
+	(("obj",obj):("cmd",cmd):opts)
 
 runRWST_ :: Monad m => s -> RWST r w s m a -> r -> m a
 runRWST_ s rwst r = (\(a,_,_) -> a) `liftM` runRWST rwst r s
@@ -103,8 +107,9 @@ login server username password = get result loc opts where
 		| L.pack "\nOk" == bs = T.LoginSuccess
 		| otherwise           = T.LoginProblem bs
 -- }}}
--- list games {{{
-status = object "game" "list" id [("view","status")]
+-- games {{{
+gameInfo :: String -> ID GameTag -> DGS (T.Response (ID GameTag))
+gameInfo server (ID gid) = object "game" "info" [("gid", show gid)] server
 -- }}}
 -- sgf {{{
 -- TODO: update this to take advantage of all the new multi-player game stuff
