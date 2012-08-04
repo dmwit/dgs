@@ -7,7 +7,6 @@ import Data.Aeson.Types hiding (Success)
 import Data.Text
 import Data.Time.Format
 import Network.DGS.Types
-import Network.DGS.Errors
 import System.Locale
 
 import qualified Data.HashMap.Strict as H
