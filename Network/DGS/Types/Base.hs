@@ -49,7 +49,7 @@ type Point = (Integer, Integer)
 newtype ID a = ID { getID :: Integer } deriving (Eq, Ord, Show, Read)
 
 -- | Specifically for strings that happen to be users' nicknames.
-newtype Username = Username { getUsername :: Text } deriving (Eq, Ord, Show, Read)
+newtype Nick = Nick { getNick :: Text } deriving (Eq, Ord, Show, Read)
 
 -- | for use with 'ID'
 data UserTag
@@ -59,3 +59,9 @@ data GameTag
 
 -- | for use with 'ID'
 data TournamentTag
+
+-- | for use with 'ID'
+data ShapeTag
+
+-- | for use with 'ID'
+data MoveTag
