@@ -2,7 +2,7 @@ module Network.DGS.Types
 	( Label, Error(..), label, jsonName, details
 	, DGS(..)
 	, LoginResult(..), Response(..), Quota(..)
-	, Point, ID(..), Username(..)
+	, Point, ID(..)
 	, UserTag, GameTag, TournamentTag
 	) where
 
