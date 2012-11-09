@@ -1,49 +1,49 @@
 module Network.DGS.Types.Time where
 
+import Data.Time.Clock
+
 -- spec for this stuff is at
 -- http://dragongoserver.cvs.sourceforge.net/viewvc/dragongoserver/DragonGoServer/specs/time.txt?view=markup
 
--- TODO:
--- * documentation
--- * check how things are reported when somebody adds time to somebody that's in a byoyomi period
--- * do something about the horribleness of hand-namespacing (e.g. AbsoluteLimit/AbsoluteRemaining)
-
+-- | Dragon supports three standard kinds of byoyomi time.
 data ByoyomiStyle
-	= Japanese { periods :: Integer }
-	| Canadian { stones  :: Integer }
-	| Fischer
-	deriving (Eq, Ord, Show, Read)
+	= Japanese { periods :: Integer } -- ^ You have this many chances to take longer than the byoyomi time to play a move. If you use up all your chances, you lose.
+	| Canadian { stones  :: Integer } -- ^ You must play this many moves in each byoyomi time. If you don't play enough moves in a byoyomi time, you lose.
+	| Fischer                         -- ^ Every move increases your main time by the byoyomi time (up to a maximum of the game's original main time limit). If your main time runs out, you lose.
+	deriving (Eq, Ord, Show)
 
+-- The style looks a bit weird below: the haddocks for Absolute and Main have
+-- seemingly spurious blank lines after them and then some | style comments
+-- that would look better as ^ style comments.  This is to work around some
+-- deficiencies in Haddock, so please don't "fix" it.
+
+-- | The time limit of a game: how much time the players are apportioned at the
+-- beginning of the game.
 data Limit
-	= AbsoluteLimit { main :: DiffTime }
-	| ByoyomiLimit
+	= Absolute { main :: DiffTime } -- ^ 'Absolute' time limits have no extra time; once the 'main' time is up, that's it.
+
+	-- | 'Indefinite' time limits are flexible: there's no upper bound on the
+	-- actual amount of time a game may take, so long as both players play
+	-- frequently once the 'main' time is up.
+	| Indefinite
 		{ main    :: DiffTime
-		, byoyomi :: DiffTime
+		, byoyomi :: DiffTime -- ^ how much extra time is allotted; the interpretation of this field depends on the 'ByoyomiStyle' stored in 'style'
 		, style   :: ByoyomiStyle
 		}
-	deriving (Eq, Ord, Show, Read)
+	deriving (Eq, Ord, Show)
 
+-- | One player's remaining time: how much time that player has left of the
+-- amount originally apportioned to him at the beginning of the game. When an
+-- opponent adds time to a player currently in a byoyomi period, that period
+-- (and possibly all periods, at the opponent's disgression) is reset and the
+-- player enters main time. The 'currentStyle' is never 'Fischer' (as
+-- 'Fischer'-style games end whenever one player runs out of main time).
 data Remaining
-	= AbsoluteRemaining { current :: DiffTime }
-	| MainRemaining
-		{ current      :: DiffTime
-		, extra        :: Difftime
-		, extraStyle   :: ByoyomiStyle
-		}
-	| ByoyomiRemaining
-		{ current      :: DiffTime
-		, currentStyle :: ByoyomiStyle
-		, extra        :: DiffTime
-		, extraStyle   :: ByoyomiStyle
-		}
-	-- invariant: currentStyle and extraStyle have the same constructor
-	deriving (Eq, Ord, Show, Read)
+	= Main Limit -- ^ the player still has main time left
 
-{- example of good documentation to steal copy from
-data TimeRemaining = Byoyomi
-	{ current :: DiffTime -- ^ the timer that's currently counting down (may be main time, or the time in a byoyomi)
-	, extra   :: DiffTime -- ^ the time left in the next byoyomi period (usually the byoyomi time of the game's time limit, but may be less if the opponent added time in the middle of a byoyomi period); in Fischer time, this is how much will be added on the next move
-	, stones  :: Integer  -- ^ the number of stones one must play to complete this period (if applicable)
-	, periods :: Integer  -- ^ how many complete byoyomi periods have not yet been started
-	} deriving (Eq, Ord, Show, Read)
--}
+	-- | the player has used up all their main time and is in a byoyomi period
+	| Byoyomi
+		{ current      :: DiffTime     -- ^ the amount of time remaining in the current period
+		, currentStyle :: ByoyomiStyle -- ^ for 'Japanese' style byoyomi: how many full periods the player still has; for 'Canadian' style byoyomi: how many stones the player must play before this period runs out
+		}
+	deriving (Eq, Ord, Show)
