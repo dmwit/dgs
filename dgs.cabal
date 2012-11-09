@@ -31,7 +31,11 @@ library
                     network,
                     monad-control,
                     transformers-base,
-                    time
+                    time,
+                    unordered-containers,
+                    old-locale,
+                    text,
+                    aeson
 
 source-repository head
     type:       git
