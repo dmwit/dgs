@@ -4,7 +4,7 @@ import Data.Maybe
 
 -- | Convert a type of error to the corresponding category of errors. Some types
 --   of errors fall under several categories.
-kind        :: Label  -> [Kind]
+kinds       :: Label  -> [Kind]
 
 -- | List all the types of errors from a particular category.
 labels      :: Kind   -> [Label]
@@ -30,7 +30,7 @@ details :: Error -> String
 details (KnownError   _ s) = s
 details (UnknownError _ s) = s
 
-kind l = case l of
+kinds l = case l of
 	NotLoggedIn          -> [LoginKind]
 	WrongUserid          -> [LoginKind]
 	WrongPassword        -> [LoginKind]

@@ -31,10 +31,11 @@ data LoginResult
 	deriving (Eq, Ord, Show, Read)
 
 data Response a
-	= Success        Quota a      -- ^ the stars aligned; here's your answer!
-	| UnknownVersion Quota String -- ^ currently, only 1.0.15:13 is supported
-	| Problem        Quota Error  -- ^ something was wrong with your request
-	| NoParse                     -- ^ the server sent invalid JSON or valid JSON outside the schema it promised to deliver
+	= Success               Quota  a      -- ^ the stars aligned; here's your answer!
+	| UnknownVersion (Maybe Quota) String -- ^ currently, only 1.0.15:2 is supported
+	| Problem               Quota  Error  -- ^ something was wrong with your request
+	| NoLogin                      Error  -- ^ not logged in for some reason (maybe the 'Error' has more details, but probably you unwisely ignored the return value from 'login' earlier)
+	| NoParse                             -- ^ the server sent invalid JSON or valid JSON outside the schema it promised to deliver
 	deriving (Eq, Ord, Show, Read)
 
 -- | how many accesses you have left, and when the quota will reset to its

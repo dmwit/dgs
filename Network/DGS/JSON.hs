@@ -13,13 +13,14 @@ import qualified Data.HashMap.Strict as H
 
 instance FromJSON a => FromJSON (Response a) where
 	parseJSON v@(Object o) = do
-		quota   <- parseJSON v
+		quota   <- (Just <$> parseJSON v) <|> pure Nothing
 		version <- o .: "version"
 		error   <- o .: "error"
-		case (version, error, label error) of
-			("1.0.15:1", "", _) -> Success quota <$> parseJSON v
-			("1.0.15:1", _ , l) -> Problem quota . maybe (UnknownError error) KnownError l <$> o .: "error_msg"
-			_                   -> pure (UnknownVersion quota version)
+		case (version, error, label error, quota) of
+			("1.0.15:2", _ , l, Nothing   ) -> NoLogin . maybe (UnknownError error) KnownError l <$> o .: "error_msg"
+			("1.0.15:2", "", _, Just quota) -> Success quota <$> parseJSON v
+			("1.0.15:2", _ , l, Just quota) -> Problem quota . maybe (UnknownError error) KnownError l <$> o .: "error_msg"
+			(_         , _ , _, _         ) -> pure (UnknownVersion quota version)
 
 instance FromJSON Quota where
 	parseJSON (Object v) = case H.lookup "quota_expire" v of
