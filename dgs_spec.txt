@@ -37,7 +37,10 @@ Topics:
       a. Login & Logout
       b. Request
       c. Standard Response
-      d. List Response
+      d. List Request & Response
+      e. Filtered Response
+      f. Expected Fields
+      g. Standard Request Parameters
 
    3. Objects
       a. "game"     - playing a started game
@@ -71,11 +74,14 @@ Topics:
 
 #############  TODO TODO TODO  ###############
 
-Issues to specify:
+Issues to specify (see also section (8)):
+
    - how to handle DGS-tags in text (messages/posts/etc) on client-side ?
-   - how to control paging of lists (offset, limit, has_next)
-   - charsets, see http://www.dragongoserver.net/forum/read.php?forum=10&thread=27755#29511
-   - refactor error-codes, see section (5) !?
+
+   - charsets / encoding / utf-8:
+      - see http://www.dragongoserver.net/forum/read.php?forum=10&thread=27755#29511
+      - see http://www.dragongoserver.net/forum/read.php?forum=10&thread=27755#33564
+      - see http://www.dragongoserver.net/forum/read.php?forum=10&thread=27755#33772
 
    - fair-komi negotiation for game-status KOMI
 
@@ -166,7 +172,7 @@ The HTTP-Content-Type of the result is "application/json", except when the optio
 instead.
 
 
-#-------- (2c) Standard Reponse -----------------------------------------------
+#-------- (2c) Standard Response ----------------------------------------------
 
 The standard minimal response is a JSON-formatted text with a quick-suite-version
 and an error-code, there can be an optional 'error_msg' element:
@@ -175,7 +181,7 @@ and an error-code, there can be an optional 'error_msg' element:
       "version": "1.0.15:13",      # DGS_VERSION:QUICK_VERSION
       "error": "error_code",
       "error_msg": "error message",
-      "quota_count": 497,          # remaining quota-count and quota-expire
+      "quota_count": 497,          # remaining quota-count and quota-expire (if count is 1, the next command will get blocked)
       "quota_expire": "2012-03-27 17:34:12"
    }
 
@@ -217,26 +223,62 @@ IMPORTANT NOTE:
    in the response or its nested return objects.
 
 
-#-------- (2d) List Reponse ---------------------------------------------------
+#-------- (2d) List Request & Response ----------------------------------------
 
-The quick-suite can also return list of object entries. In this case, the result
+The quick-suite can also return a list of object entries. In this case, the result
 always contains several mandatory and some optional standard fields:
 
    {
       "list_object": "game",        # object-name, corresponds to obj-option
-      "list_size": 2,               # total list-size
+      "list_totals": -1,            # total list-size; or -1 if total size is unknown
+      "list_size": 2,               # current list-size returned in response, 0=empty
       "list_offset": 0,             # list offset for paging a result
       "list_limit": 20,             # number of entries per page; 0=all entries returned
       "list_has_next": 0,           # 1=has next-page, 0=last page retrieved
-      "list_order": "key1+,key2-",  # list order, can be empty, +=ASCending, -=DESCending
-      "list_header": [ "key1", "key2", ... ],   # (optional); field-names for TABLE-style
+      "list_order": "key1+,key2-",  # list order, can be empty (=no-order); + = ASCending, - = DESCending
+      "list_header": [ "key1", "key2", ... ],   # (optional); field-names for TABLE-list-style
       "list_result": [ item1, item2, ... ]      # list-entries (array | objects)
    }
+
+   * NOTE about "list_totals" and "list_size":
+      - it is not always possible to find out the total number of rows, because that
+        can be a very expensive query. In such cases, the 'list_totals' is -1.
+      - the 'list_size' is a redundant information giving the number of entries in
+        the response from the 'list_result'-array. When the total number of rows
+        is larger than the given LIMIT, only a subset of items is returned.
+        The starting offset is 'list_offset', the 'list_size' is the number of
+        entries in the current result, and 'list_totals' gives the total number
+        of found rows for the query. However if 'list_totals' is -1, at least you
+        can check 'list_has_next' to check if there are more "pages" to retrieve.
+        If 'list_has_next' is 0 the last "page" has been reached.
+
+   * NOTE about "list_order":
+      - the keys returned in 'list_order' refers to the field-names of the command,
+        e.g. for waitingroom-list: "user.rating-,user.handle+"
+      - if the key is a name in full upper-case, then it resembles an internal field,
+        that is not returned in the result, e.g. for game-list of status-view with
+        next-game-order 'TIMELEFT': "TIMEOUTDATE+,time_lastmove+,id-"
 
    * NOTE about "list_header" (see also example below):
       - this field is only used for TABLE-style
       - and only if list contains at least one item
       - keys of nested objects are written using '.', e.g. "game.message.user.name"
+
+To paginate when using the 'list'-command you can always use the following parameters:
+
+   - 'limit' : gives maximum number of rows returned in the response,
+               if omitted or empty, a default of 10 is used.
+               can be in range 1..100
+
+   - 'off'   : gives the starting offset to load the next "page" of data from.
+               if omitted or empty or negative, a default of 0 is used.
+
+   - NOTES:
+      - These two parameters can always be used, though they are not parsed for every
+        object-handler. For example, the quick-handler for folders is always returning
+        all entries regardless of the limit or offset given.
+        However, such exceptions are documented on the respective object-specs.
+
 
 The output of objects in a full JSON-format can be quite large, because an object
 is normally represented as map of keys with their respective values for EACH item
@@ -261,6 +303,7 @@ Example for TABLE-style:
 
    {
       "list_object": "game",
+      "list_totals": -1,
       "list_size": 2,
       "list_offset": 0,
       "list_limit": 0,
@@ -278,6 +321,7 @@ Example for JSON-style:
 
    {
       "list_object": "game",
+      "list_totals": -1,
       "list_size": 2,
       "list_offset": 0,
       "list_limit": 0,
@@ -301,6 +345,89 @@ Example for JSON-style:
          }
       ]
    }
+
+
+#-------- (2e) Filtered Response ----------------------------------------------
+
+The web-site provide a standard way using filters on the lists of the various
+table-rows to restrict the returned data. To allow restricting the data-queries
+for the quick-suite as well, though only with the defined set of filters as
+specified in this spec for the different objects.
+
+A filter can be provided by giving a URL-argument starting with a 'filter_'-prefix.
+The available filters for the quick-suite objects are described for the different
+commands as:
+
+   quick_do.php?... &filter_...=<FILTER>
+
+   - FILTER-option:
+      - 'filter_NAME=VAL' :
+
+NAME stands for the name of the filter.
+For example see the 'list'-command for the 'wroom'-object:
+
+   - 'filter_suitable=VAL' : suitable-filter
+
+Such a filter normally has a correspondence on the web-site to make the quick-suite
+behave similar like the web-site.
+
+
+#-------- (2f) Expected Fields ------------------------------------------------
+
+Some of the commands can return a large amount of data-fields, though the client
+is not interested in all of them. To restrict the response to return only a certain
+list of fields, the standard-option 'fields' can be used. For example:
+
+   # command with field-restriction
+   quick_do.php?obj=user&cmd=info&user=guest&fields=handle,rat*
+
+   # the result would be for example:
+   Result (JSON) =
+      {
+         "version": "1.0.15:13",
+         "error": "",
+         "quota_count": 497,
+         "quota_expire": "2012-03-27 17:34:12"
+         "id" : 1,
+         "handle" : "guest",
+         "rating_status" : "RATED",
+         "rating" : "5k (+46%)",
+         "rating_elo" : "1643.88952636719",
+      }
+
+This works for "normal" objects and "list"-responses alike.
+
+The syntax for the 'fields'-option is:
+
+   - if option is omitted or empty (=''), all fields as given in the specs are returned
+   - if the option is given, only the specified and standard fields are returned,
+     standard-fields (always included) are:
+
+         version,error*,quota_*,list_*,id
+
+   - only the fields on the 1st level can be restricted, fields on (nested) sub-objects
+     can not be excluded
+   - fields-option contains a comma-separated list of either a field-name or a field-regex.
+     field-regex can contain '*' at the end of the field-name matching all fields
+     starting with the given prefix
+
+
+#-------- (2g) Standard Request Parameters ------------------------------------
+
+For the 'list'-command for all objects there are a bunch of standard list-parameters,
+that can always be used and are therefore not enlisted in the parameter-list for the
+respective commands in the object-specs below:
+
+   - 'limit'         = see section (2d), limits number of returned entries
+   - 'off'           = see section (2d), start position for paginating entries
+   - 'lstyle'        = see section (2d), list-output-style
+
+Additional standard parameters that are available for other objects and commands:
+
+   - 'filter_...'    = see section (2e), restrict query by certain select-criteria
+   - 'fields'        = see section (2f), return only certain fields
+   - 'test'          = see section (2b), header-type of response
+
 
 
 #-------- (3) Objects ---------------------------------------------------------
@@ -349,15 +476,38 @@ Request:
 
    quick_do.php?obj=game&cmd=<COMMAND>&gid=<GAME_ID>&move_id=<MOVE_ID>&move=<MOVES>&msg=<MESSAGE>&with=<WITH>&fmt=<FORMAT>&toggle=<TOGGLE>&agree=<AGREE>
 
+   # info | get_notes
+   quick_do.php?obj=game&cmd=<COMMAND>&gid=<GAME_ID>&with=<WITH>
+
    # list
-   quick_do.php?obj=game&cmd=list&view=<VIEW>&with=<WITH>&lstyle=<LIST_STYLE>&uid=<USER_ID>
+   quick_do.php?obj=game&cmd=list&view=<VIEW>&with=<WITH>&uid=<USER_ID>&filter_...=<FILTER>
 
 Options:
 
    <COMMAND> = "info" | "get_notes" | "list" | "delete" | "set_handicap" | "move" | "resign" | "status_score" | "score"
 
+   <AGREE> = for "score"-command: give agreement with current state of stones (dead/alive/neutral/dame) and score
+      - 1 = agree
+      - 0 = disagree (default)
+
+      - NOTE: agreement could be represented by an empty MOVES-argument, but to prevent "slip"
+        in client, it's specified explicitly by giving the AGREE-argument.
+
+   <FILTER> = optional filter-options (see commands)
+
+   <FORMAT> = output-format for coordinates (default is "sgf"):
+      - "sgf"   : SGF-format without separator, e.g. "bcefnj"
+      - ","     : SGF-format with comma-separator, e.g. "bc,ef,nj"
+      - "board" : board-coordindates with comma-separator, e.g. "b17,e14,o10"
+
+      - NOTE about lengths of output for different formats:
+            sgf-format < ','-format < board-format, e.g. 900 < 1250 < 1450 bytes
+
    <GAME_ID> = integer
       - reference game to perform game-operation on
+
+   <MESSAGE> = message
+      - optional game-message on game-operation
 
    <MOVE_ID> = context for move
       - move_id = current DGS-move-number as stored in db in Games.Moves,
@@ -389,40 +539,19 @@ Options:
                - sgf-mode (without comma),   e.g. "bcpqmoeq"
                - sgf-mode (comma-separated), e.g. "bc,pq,mo,eq"
                - label-mode (comma-separated), e.g. "b17,q3,n5,e3"
-
-   <MESSAGE> = message
-      - optional game-message on game-operation
-
-   <VIEW> = view for game-list
-
-   <WITH> = optional with-option to deep-load recursive data (see commands)
-
-   <FORMAT> = output-format for coordinates (default is "sgf"):
-      - "sgf"   : SGF-format without separator, e.g. "bcefnj"
-      - ","     : SGF-format with comma-separator, e.g. "bc,ef,nj"
-      - "board" : board-coordindates with comma-separator, e.g. "b17,e14,o10"
-
-      - NOTE about lengths of output for different formats:
-            sgf-format < ','-format < board-format, e.g. 900 < 1250 < 1450 bytes
-
    <TOGGLE> = toggle-mode for "status_score" and "score" commands
       - "all" (default) = each given coordinate-point toggles the point-state and
         adjacent points of the same "group" (as the GUI does it)
       - "uniq" = given coordinate-points toggle groups in a unique fashion,
         i.e. points are only toggled once for all togglings if they belong to the same unique group.
 
-   <AGREE> = for "score"-command: give agreement with current state of stones (dead/alive/neutral/dame) and score
-      - 1 = agree
-      - 0 = disagree (default)
-
-      - NOTE: agreement could be represented by an empty MOVES-argument, but to prevent "slip"
-        in client, it's specified explicitly by giving the AGREE-argument.
-
-   <LIST_STYLE> = see list-style in section (2d)
-
    <USER_ID> = integer | 'mine'
       - user-id (integer)
       - 'mine' = logged-in user
+
+   <VIEW> = view for game-list
+
+   <WITH> = optional with-option to include additional data-fields (see commands)
 
 
 Commands:
@@ -432,7 +561,10 @@ Commands:
       - optional opts: WITH
 
       - WITH-option:
-         - 'user_id' : additionally return user_id-data (handle + name) for white and black user
+         - 'user_id' : additionally return user_id-data for black + white game-users: handle, name, country, rating, rating_elo, last_access
+         - 'prio'    : additionally return the games priority set by the user, otherwise the field is not included
+         - 'notes'   : additionally return the starting text (ca. 30 chars) of the logged-in users private game-notes
+         - 'ratingdiff' : additionally return the rating-diff for finished games for black + white game-users
 
       - Errors:
          - all errors of: [E-LOGIN], [E-GEN]
@@ -445,66 +577,68 @@ Commands:
             "tournament_id" : 0,    # tournament-id > 0 if game is part of tournament
             "game_action" : 2,      # game-action as defined for [4.QST]
             "status" : "PLAY",      # game-status: KOMI | SETUP | PLAY | PASS | SCORE | SCORE2 | FINISHED
-            "flags" : "HIDDENMSG",  # flags (comma-separated): HIDDENMSG (game contains hidden-messages), ADMRESULT (admin ended game)
-            "score" : "",           # score for finished game only (same format as for status_score-command above)
+            "flags" : "HIDDENMSG",  # flags (comma-separated): HIDDENMSG (game contains hidden-messages), ADMRESULT (admin ended game),
+                                    #    TGDETACHED (detached tournament-game, see 'specs/db/table-Tournaments.txt')
+            "score" : "",           # score for finished game only (same format as for game-object status_score-command); '' (=empty) if game not finished
 
-            "rated" : 1,            # 0=unrated, 1=rated
             "game_type" : "GO",     # GO | TEAM_GO(N:M) | ZEN_GO (N); N,M >= 1
+            "rated" : 1,            # 0=unrated, 1=rated
             "ruleset" : "JAPANESE", # ruleset: JAPANESE | CHINESE
             "size" : 19,            # board-size
             "komi" : 6.5,           # komi
             "jigo_mode" : "KEEP_KOMI", # only relevant for fair-komi: KEEP_KOMI, ALLOW_JIGO, NO_JIGO
             "handicap" : 0,         # handicap-stones
             "handicap_mode" : "FREE", # STD=standard-handicap, FREE=free-handicap
-
             "shape_id" : 0,         # shape-id > 0 if game was started as shape-game
-            "shape_snapshot" : "",  # shape-snapshot
 
             "time_started" : "YYYY-MM-DD hh:mm:ss",  # game started time
             "time_lastmove" : "YYYY-MM-DD hh:mm:ss", # last-moved (also game-end-time if finished)
             "time_weekend_clock" : 1, # 1=time-running on weekend, 0=otherwise
             "time_mode" : "CAN",      # time-mode: FIS=Fischer-time, JAP=japanese-time, CAN=canadian-time
-            "time_limit" : "C: 14d + 15d / 8", # initial time-settings for game (like in waiting-room),
-                                               # see section (6b) "TimeLimit-Formats"
+            "time_limit" : "C: 14d + 15d / 8", # initial time-settings for game (like in waiting-room), see section (6b) "TimeLimit-Formats"
 
+            "my_id" : 111,          # user-id of logged-in user (redundant in each element, but included if logged-in user-id unknown)
             "move_id" : 75,         # move-id, required as context for playing via game-quick-suite
+            "move_count" : 75,      # number of moves
+            # the following 4 fields are omitted for finished games
             "move_color" : "B",     # B=black-to-move, W=white-to-move
             "move_uid" : 111,       # user-id to move next
-            "move_last" : "bc",     # SGF-format of last-move ("" for non-board-move, e.g. pass/scoring)
-            "move_ko" : 0,          # 1=ko, 0=no-ko in last-move
+            "move_opp" : 222,       # opponent of user-id
+            "move_last" : "bc",     # SGF-format of last-move ("" for non-board-move, e.g. pass/scoring/setup)
+
+            # the following 2 fields are omitted for finished games
+            "prio" : 0,             # games-priority, 0 if not set or loaded; field only loaded if WITH-option contains 'prio' used AND status-games ordered by prio
+            "notes" : "",           # beginning of game-notes (if existing but only for logged-in user); field only present if WITH-option contains 'notes' used
 
             "black_user" : {        # black-user object-info
                "id" : 111,                # USER_ID
-               # the following fields only if WITH-option contain 'user_id'
-               "handle" : "black-handle", # USER_HANDLE
-               "name" : "black-name",     # user name
+               # the following fields only if WITH-option contains 'user_id'
+               "handle" : "black-handle",
+               "name" : "black-name",
+               "country" : "de",
                "rating" : "3k (-7%)",             # current DGS rating | "" (=no rating)
                "rating_elo" : "1792.59326171875", # current DGS elo-rating | "" (=no rating)
+               "last_access" : "YYYY-MM-DD hh:mm:ss",
             },
             "black_gameinfo" : {    # game-info of black-user
                "prisoners" : 3,                         # prisoners
-               "remtime" : "C: 1d 10h (+ 15d / 8)",     # remaining-time (same format as for quick-status)
+               "remtime" : "C: 1d 10h (+ 15d / 8)",     # remaining-time (same format as for quick-status, see [4.QST]);
+                                                        # - field only filled for games where black or white user is logged-in user
+                                                        # - field empty for finished games
                "rating_start" : "3k (-7%)",             # start-rating
                "rating_start_elo" : "1792.59326171875", # start-rating ELO
-               "rating_end" : "3k (-7%)",               # end-rating (after game finished)
-               "rating_end_elo" : "1792.59326171875",   # start-rating ELO (after game finished)
+
+               # the following 3 fields are only included if the game is finished, omitted otherwise
+               "rating_end" : "3k (-7%)",               # end-rating
+               "rating_end_elo" : "1792.59326171875",   # start-rating ELO
+               "rating_diff" : "+0.23",                 # rating-diff, field only included if WITH-option contains 'ratingdiff'
             },
 
             "white_user" : {        # white-user object-info
-               "id" : 111,                # USER_ID
-               # the following fields only if WITH-option contain 'user_id'
-               "handle" : "white-handle", # USER_HANDLE
-               "name" : "white-name",     # user name
-               "rating" : "3k (-7%)",             # current DGS rating | "" (=no rating)
-               "rating_elo" : "1792.59326171875", # current DGS elo-rating | "" (=no rating)
+               # same fields as described above for 'black_user'
             },
             "white_gameinfo" : {    # game-info of white-user
-               "prisoners" : 3,                         # prisoners
-               "remtime" : "C: 11h / 2 (15d / 8)",      # remaining-time (same format as for quick-status)
-               "rating_start" : "3k (-7%)",             # start-rating
-               "rating_end" : "3k (-7%)",               # end-rating (after game finished)
-               "rating_elo_start" : "1792.59326171875", # start-rating ELO
-               "rating_elo_end" : "1792.59326171875",   # start-rating ELO (after game finished)
+               # same fields as described above for 'black_gameinfo'
             }
          }
 
@@ -521,50 +655,113 @@ Commands:
          }
 
 
-   # NOT IMPLEMENTED: to-specify (TODO)
    "list" : retrieve list of games
       - required opts: VIEW
-      - optional opts: USER_ID, LIST_STYLE, WITH
+      - optional opts: USER_ID, WITH, LIMIT, FILTER
 
       - VIEW-option:
-         - 'status'    : ask for running games where to move in for given USER_ID
-         - 'running'   : ask for running games for logged-in user  (uid=mine)
-         - 'finished'  : ask for finished games for logged-in user (uid=mine)
-         - 'observing' : ask for games observed by logged-in user  (uid=mine)
-         - 'observed'  : ask for all observed games
-         - 'mpg'       : ask for multi-player-games
+         - 'status'    : ask for status-games (=own running games where to move in)
+            - LIMIT-option may be 'all' to return all status-games in one go
+            - available WITH-options: user_id, prio, notes
+            - USER_ID-option is restricted to logged-in user (or equivalent '' | 0 | 'mine' )
+
+         - 'running'   : ask for running games for user
+            - available WITH-options: user_id, notes
+            - USER_ID-option contains user-id to show running games for
+
+         - 'finished'  : ask for running games for user
+            - available WITH-options: user_id, ratingdiff
+            - USER_ID-option contains user-id to show finished games for
+
+         - 'observe'   : ask for all observed games (USER_ID-option 'all'), or else for observed games of logged-in user
+            - available WITH-options: user_id
+            - USER_ID-option ='all' : all observed games
+            - USER_ID-option ='mine' (or equivalents): like "games i'm observing" from web-site
 
       - USER_ID-option:
-         - empty | 0 = default, for most views the default-USER_ID is 'mine'
-         - 'mine'    = use logged-in user-id
+         - empty | 0 = default, for all views the default-USER_ID is 'mine'
          - integer   = use other user-id (can be logged-in user-id)
-
-         - NOTE: not all values allowed for all views
+         - 'mine'    = use logged-in user-id
+         - 'all'     = only allowed for 'observe'-view
 
       - WITH-option:
-         - 'user_id' : additionally return user_id-data (handle + name) for game-players
+         - 'user_id' : additionally return user_id-data for black + white game-users: handle, name, country, rating, rating_elo, last_access
+         - 'prio'    : additionally return the games priority set by the user, otherwise the field is not included
+         - 'notes'   : additionally return the starting text (ca. 30 chars) of the logged-in users private game-notes
+         - 'ratingdiff' : additionally return the rating-diff for finished games for black + white game-users
+
+      - LIMIT-option:
+         - only for VIEW-option 'status', the LIMIT-option can be 'all' to return all status-games in one go
+
+      - FILTER-options:
+         - 'filter_mpg=VAL' :
+            - VAL = '1' : find all / filter on multi-player-games
+            - VAL = '0' : normal games-result as web-page (default)
+         - 'filter_tid=VAL' : filter on only given tournament-id
+
+      - IMPORTANT NOTES: "comparison between web-site and quick-suite"
+         * The quick-suite game-list uses the same kind of views as the web-site does.
+           So there is no list of ALL games, but only certain views on them, namely:
+
+               - 'status'-view = like 'status.php', running games of own (logged-in user) where to move in next
+               - 'running'-view = like 'show_games.php', user-specific running games
+               - 'finished'-view = like 'show_games.php', user-specific finished games
+               - 'observe'-view = like 'show_games.php', games i'm observing, OR all observed games (by all users)
+
+         * The views for ALL running or ALL finished games is not supported by the quick-suite,
+           because the query is very expensive and would need to be restricted as the web-site is
+           to make it efficient enough.
+
+         * The web-site show the data-fields differently for "my running games" and "my finished games".
+           These views assume a fix "user" (logged-in user) and show only data-fields for the "opponent".
+
+           Out of consistency-reasons the quick-suite does not return "opponent" and "user"-data,
+           but always for all views show data-fields for the Black- and White-user-roles
+           with additional fields 'my_id', 'move_color', 'move_uid' and 'move_opp' to determine
+           the roles of "user" and "opponent".
+
+           To have the same "view" as the web-site, the client of the quick-suite must determine
+           the "user" and "opponent" matching it to the black- and white-user.
+
+           Example:
+               - result-fields: my_id=111, move_color=B, move_uid=222, move_opp=111
+
+               - then the logged-in users user-id is 111, so the "user" would be 111 and
+                 the "opponent" would be 222. With this check the "black_user.id" and
+                 "white_user.id"-field to get the according color the user or opponent has.
+                 If the "black_user.id" is 222, then the respective game-info can
+                 be found in the "black_gameinfo"-object.
+
+         * Finally for multi-player-games (MPGs) the same "restrictions" apply as for the web-site.
+           That means, the normal quick-suite game-lists could contain some multi-player-games,
+           but only as long as the requested user-id has the role of the Black or White-user.
+
+           To get a game-list with the quick-suite to all MPGs of a specific user, the client has
+           to use the 'mpg' FILTER-option, adding 'filter_mpg=1' to the URL-arguments.
+
+           For example, the "opponent" for the result shown for the "info"-command above is 222,
+           indicated by the 'move_opp'-field. Or determine the opponent by the 'move_color'-field.
+           If the value is 'B', then the opponent has the White color, so the opponents data
+           can be found in the "white_..."-structures.
 
       - Errors:
          - all errors of: [E-LOGIN], [E-GEN]
 
       - Result (JSON) = result-list see section (2d) with list of objects dependent on view:
-         - only fields are listed here, check semantics on section (3a), see "info"-command
+         - only the field-names for the different views are listed here,
+         - the fields content and semantics are the same as for the game-object "info"-command (see above (3a))
 
-         * VIEW = 'status'
-           game_id, tournament_id, game_status, game_prio, move_id,
-           game_type, ruleset, size, handicap, komi, rated,
-           moves, move_color, time_lastmove, time_remaining,
-           opp_uid, opp_handle, opp_name, opp_rating, opp_lastaccess
+         * VIEW = 'status' | 'running' | 'finished' :
+            - full set of fields is returned for each list-element as for "info"-command (exceptions are described there)
 
-         * VIEW = 'running' | 'finished' | 'observing' | 'observed':
-           - not defined ATM -> see 'status'
-           - to-specify:
-             black|white_user (nested object according to WITH-option),
-             black|white_gameinfo.remtime
+         * VIEW = 'observe' (all observed games  OR  games i'm observing) :
+            - full set of fields is returned for each list-element as for "info"-command
+            - only for "all observed games" the following additional fields are appended to the result:
 
-         * VIEW = 'mpg':
-           - not defined ATM -> see 'status'
-
+                  {
+                     "obs_count" : 3,        # number of observers of the game
+                     "obs_mine" : 1,         # 1=observed game is one of logged-in user, 0=otherwise
+                  }
 
    "delete" : deletes specified game
       - required opts: GAME_ID, MOVE_ID
@@ -727,11 +924,36 @@ Examples of game-playing cycle:
    quick_do.php?obj=game&cmd=delete&gid=12345&move_id=6
 
 
+   # retrieve game-information (with all possible fields)
+   do_quick.php?obj=game&cmd=info&gid=12345&lstyle=json&with=user_id,prio,notes,ratingdiff
+
    # get game-notes
    do_quick.php?obj=game&cmd=get_notes&gid=12345
 
+   # retrieve list of (all) my status-games
+   do_quick.php?obj=game&cmd=list&view=status&limit=all&with=user_id,prio,notes
+
    # retrieve list of my running-games in JSON-style list-format
    do_quick.php?obj=game&cmd=list&view=running&uid=mine&lstyle=json&with=user_id
+   do_quick.php?obj=game&cmd=list&view=running&uid=0
+   do_quick.php?obj=game&cmd=list&view=running
+   do_quick.php?obj=game&cmd=list&view=running&with=user_id,notes
+
+   # retrieve list of other users running-games
+   do_quick.php?obj=game&cmd=list&view=running&uid=2
+
+   # retrieve list of my finished-games
+   do_quick.php?obj=game&cmd=list&view=finished&with=user_id,notes,ratingdiff
+
+   # retrieve list of other users finished-games
+   do_quick.php?obj=game&cmd=list&view=finished&uid=2
+
+   # retrieve list of games i'm observing
+   do_quick.php?obj=game&cmd=list&view=observe
+
+   # retrieve list of all observed games
+   do_quick.php?obj=game&cmd=list&view=observe&uid=all
+
 
 
 #-------- (3b) Objects - "user" -----------------------------------------------
@@ -819,6 +1041,7 @@ Examples for user-commands:
    quick_do.php?obj=user&cmd=info&user=guest
 
 
+
 #-------- (3c) Objects - "message" --------------------------------------------
 
 Purpose:
@@ -839,11 +1062,20 @@ Request:
    quick_do.php?obj=message&cmd=<COMMAND>&mid=<MESSAGE_ID>&ouid=<OTHER_UID>&ouser=<OTHER_HANDLE>&subj=<SUBJECT>&msg=<MESSAGE>&folder=<FOLDER>&with=<WITH>
 
    # list
-   quick_do.php?obj=message&cmd=list&with=<WITH>&lstyle=<LIST_STYLE>
+   quick_do.php?obj=message&cmd=list&with=<WITH>&filter_...=<FILTER>
 
 Options:
 
    <COMMAND> = "info" | "send_msg" | "move_msg" | "delete_msg" | "accept_inv" | "decline_inv" | "list"
+
+   <FILTER> = optional filter-options (see commands)
+
+   <FOLDER> = integer
+      - target folder
+      - standard folders: 1=MAIN, 2=NEW, 3=REPLY, 4=TRASHCAN, 5=SENT
+
+   <MESSAGE> = text-body of message
+      - message-text for message-operation
 
    <MESSAGE_ID> = integer
       - message-id referencing private DGS-message to perform message-operation on
@@ -862,15 +1094,7 @@ Options:
 
    <SUBJECT> = title of message
 
-   <MESSAGE> = text-body of message
-      - message-text for message-operation
-
-   <FOLDER> = integer
-      - target folder
-
-   <LIST_STYLE> = see list-style in section (2d)
-
-   <WITH> = optional with-option to deep-load recursive data (see commands)
+   <WITH> = optional with-option to include additional data-fields (see commands)
 
 
 Commands:
@@ -886,8 +1110,11 @@ Commands:
       - Important Notes:
          * message-type DISPUTED currently not supported by quick-suite,
            because that needs game-settings as well => ignore them
-         * using "info"-command will automatically mark message as read (like GUI on message-read),
-           can be overwritten with target-FOLDER for non-invitation-messages (e.g. reply-folder)
+
+         * using "info"-command will NOT mark message as read (like GUI on message-read),
+           but with the FOLDER-option a target folder to move the message into can be given.
+           If a target folder is given, but the message needs a reply (e.g. for invitations),
+           the REPLY-folder will be used instead as target-folder (if another folder was given).
 
       - Errors:
          - all errors of: [E-LOGIN], [E-GEN]
@@ -899,7 +1126,7 @@ Commands:
             "id" : 1,          # message-id
             "user_from" : {
                "id" : 111,          # user-id of sender, 0=server-message
-               # the following fields only if WITH-option contain 'user_id'
+               # the following fields only if WITH-option contains 'user_id'
                "handle" : "user1",  # USER_HANDLE
                "name" : "name1",    # user name
                "rating" : "5k (+46%)",            # DGS rating | "" (=no rating)
@@ -907,7 +1134,7 @@ Commands:
             },
             "user_to" : {
                "id" : 222,          # user-id of receiver
-               # the following fields only if WITH-option contain 'user_id'
+               # the following fields only if WITH-option contains 'user_id'
                "handle" : "user2",  # USER_HANDLE
                "name" : "name2",    # user name
                "rating" : "5k (+46%)",            # DGS rating | "" (=no rating)
@@ -919,7 +1146,7 @@ Commands:
             "flags" : "",      # flags (comma-separated): BULK (multi-receiver bulk-message)
             "folder" : {
                "id" : 2,                # folder-nr (<0, 0-5 system-folder, >= 6 user-folder)
-               # the following fields only if WITH-option contain 'folder'
+               # the following fields only if WITH-option contains 'folder'
                "name" : "New",          # folder-name (lang-dependent)
                "system" : 1,            # 1=system-folder, 0=user-folder
                "color_bg" : "F7F5E399", # folder background-color (incl. alpha-channel) in hex-format
@@ -1054,60 +1281,21 @@ Commands:
       - Errors:
          - all errors of: [E-LOGIN], [E-GEN], [E-GAMECREATE], [E-MSG], [E-MSGSEND]
 
-   # NOT fully IMPLEMENTED: to-specify (filter) (TODO)
+   # NOT IMPLEMENTED: TODO
    "list" : retrieve list of messages
       - required opts: -
-      - optional opts: LIST_STYLE, WITH, FILTERS (TODO)
+      - optional opts: WITH, FILTER
 
-      - to-specify (TODO): limit, offset, order, filters
-         - FILTERS-args:
-           - filter.type = INVITATION (match values from "info")
-           - filter.folder = 1,2, ... ; std-folders have aliases NEW, REPLY, MAIN, TRASH, DEL, ... ???
-           - filter.need_reply = 0|1|all=empty
+      - WITH-option:
          - WITH-options ? -> only msg-id (no texts, maybe subject included, text only in single-mode)
 
-      - Result (JSON) =
-         {
-            "list_object" : "message", # list of object-types
-            "list_size" : 5,           # list-size total
-            "list_offset" : 0,         # start offset of list-part (for paging)
-            "list_limit" : 0,          # number of entries per page
-            "list_order" : "",         # order of list (field-names, comma-separated), ""=no-order
-            "list_result" : [          # array with found objects matching list-search
-               {
-                  "id" : 1,          # message-id
-                  "user_from" : {
-                     "id" : 111,          # user-id of sender, 0=server-message
-                     # the following fields only if WITH-option contain 'user_id'
-                     "handle" : "user1",  # USER_HANDLE
-                     "name" : "name1",    # user name
-                     "rating" : "3k (-7%)",             # current DGS rating | "" (=no rating)
-                     "rating_elo" : "1792.59326171875", # current DGS elo-rating | "" (=no rating)
-                  },
-                  "user_to" : {
-                     "id" : 222,          # user-id of receiver
-                     # the following fields only if WITH-option contain 'user_id'
-                     "handle" : "user2",  # USER_HANDLE
-                     "name" : "name2",    # user name
-                     "rating" : "",       # current DGS rating | "" (=no rating)
-                     "rating_elo" : "",   # current DGS elo-rating | "" (=no rating)
-                  },
-                  "type" : "NORMAL",      # message-type (see "info"-command)
-                  "flags" : "",           # flags (comma-separated): BULK (multi-receiver bulk-message)
-                  "folder_id" : 2,        # folder.id (see "info"-command)
-                  "created_at" : "YYYY-MM-DD hh:mm:ss", # creation-date of message
-                  "thread" : 0,           # message-id of first message in a message-thread, 0=system-message
-                  "level" : 0,            # thread-level of message-thread (starting at 0)
-                  "message_prev" : 0,     # message-id of message that has been replied to
-                  "message_hasnext" : 1,  # 0=no-answer for current message, 1=there are answer(s) to this message
-                  "needs_reply" : 1,      # 1=message-needs-reply, 0=normal message
-                  "game_id" : 0,          # game-id for game-related message (e.g. invitation); game may be deleted
-                  "subject" : "boo",      # subject of message
-               },
-               ...
-            ]
-         }
+      - FILTER-options:
+         - 'filter_type=VAL' : INVITATION (match values from "info")
+         - 'filter_folder=VAL' : 1,2, ... ; std-folders have aliases NEW, REPLY, MAIN, TRASH, DEL, ... ???
+         - 'filter_need_reply=VAL' :  0|1|all=empty
 
+      - Result (JSON) = result-list see section (2d) with list of objects:
+         - the fields content and semantics are the same as for the message-object "info"-command (see above (3c))
 
 
 Examples for message-commands:
@@ -1118,8 +1306,12 @@ Examples for message-commands:
    # retrieve message
    quick_do.php?obj=message&cmd=info&mid=1234567
 
+   # retrieve message and mark as read moving into MAIN-folder (=1)
+   quick_do.php?obj=message&cmd=info&mid=1234567&folder=1
+
    # retrieve bulk-message for certain recipient
    quick_do.php?obj=message&cmd=info&mid=1234567&ouid=2
+
 
 
 #-------- (3d) Objects - "folder" ---------------------------------------------
@@ -1136,20 +1328,21 @@ Request:
    quick_do.php?obj=folder&cmd=<COMMAND>
 
    # list
-   quick_do.php?obj=folder&cmd=list&lstyle=<LIST_STYLE>
+   quick_do.php?obj=folder&cmd=list
 
 Options:
 
    <COMMAND> = "list"
-
-   <LIST_STYLE> = see list-style in section (2d)
 
 
 Commands:
 
    "list" : returns list of message-folders in natural order
       - required opts: -
-      - optional opts: LIST_STYLE
+      - optional opts: -
+
+      - NOTES:
+         - all folders of user are returned; std-options <LIMIT> and <OFFSET> have no effect
 
       - Errors:
          - all errors of: [E-LOGIN], [E-GEN]
@@ -1157,12 +1350,13 @@ Commands:
       - Result (JSON) = // also see specs/db/table-Messages.txt
 
          {
-            "list_object" : "folder",  # list of object-types
-            "list_size" : 5,           # list-size total
-            "list_offset" : 0,         # start offset of list-part (for paging)
-            "list_limit" : 0,          # number of entries per page
-            "list_order" : "",         # order of list (field-names, comma-separated), ""=no-order
-            "list_result" : [          # array with found objects matching list-search
+            "list_object" : "folder",
+            "list_totals": -1,
+            "list_size" : 5,
+            "list_offset" : 0,
+            "list_limit" : 0,
+            "list_order" : "id+",
+            "list_result" : [
                {
                   "id" : 2,                # folder-nr (<0, 0-5 system-folder, >= 6 user-folder)
                   "name" : "New",          # folder-name (lang-dependent)
@@ -1185,6 +1379,7 @@ Examples for folder-commands:
    quick_do.php?obj=folder&cmd=list
 
 
+
 #-------- (3e) Objects - "contact" --------------------------------------------
 
 Purpose:
@@ -1199,20 +1394,23 @@ Request:
    quick_do.php?obj=contact&cmd=<COMMAND>
 
    # list
-   quick_do.php?obj=contact&cmd=list&lstyle=<LIST_STYLE>
+   quick_do.php?obj=contact&cmd=list&with=<WITH>
 
 Options:
 
    <COMMAND> = "list"
 
-   <LIST_STYLE> = see list-style in section (2d)
+   <WITH> = optional with-option to include additional data-fields (see commands)
 
 
 Commands:
 
    "list" : returns list of contacts
       - required opts: -
-      - optional opts: LIST_STYLE
+      - optional opts: WITH
+
+      - WITH-option:
+         - 'user_id' : returns additional user_id-data (see example below) for contact-user
 
       - Errors:
          - all errors of: [E-LOGIN], [E-GEN]
@@ -1220,10 +1418,11 @@ Commands:
       - Result (JSON) =
          {
             "list_object" : "contact",
+            "list_totals": -1,
             "list_size" : 3,
             "list_offset" : 0,
             "list_limit" : 0,
-            "list_order" : "contact_user.name+", # order of list + direction '+|-' (field-names, comma-separated), ""=standard-order
+            "list_order" : "contact_user.name+",
             "list_result" : [
                {
                   "contact_user" : {
@@ -1231,16 +1430,15 @@ Commands:
                      "handle" : "guest",  # USER_HANDLE
                      "name" : "Guest",    # user name
                      # for the following fields -> see "info"-command for user-object (3b)
-                     "type" : "",
+                     # the following fields are only included if WITH-option contains 'user_id'
                      "country" : "se",
-                     "picture" : "",
-                     "last_access" : "YYYY-MM-DD hh:mm:ss",
-                     "last_move" : "YYYY-MM-DD hh:mm:ss",
-                     "rating_status" : "RATED",
                      "rating" : "5k (+46%)",
                      "rating_elo" : "1643.88952636719",
+                     "last_access" : "YYYY-MM-DD hh:mm:ss",
+                     "last_move" : "YYYY-MM-DD hh:mm:ss",
+                     "type" : "",
                   },
-                  "system_flags" : "",    # system flags (comma-separated): WAITINGROOM REJECT_MESSAGE REJECT_INVITE WR_HIDE_GAMES
+                  "system_flags" : "",    # system flags (comma-separated): WR_PROTECT_GAMES REJECT_MESSAGE REJECT_INVITE WR_HIDE_GAMES
                   "user_flags" : "",      # user flags (comma-separated): BUDDY FRIEND STUDENT TEACHER FAN ADMIN TROLL MISC
                   "created_at" : "YYYY-MM-DD hh:mm:ss", # contact created date
                   "updated_at" : "YYYY-MM-DD hh:mm:ss", # contact last-updated date
@@ -1258,6 +1456,7 @@ Examples for contact-commands:
 
    # retrieve all contacts
    quick_do.php?obj=contact&cmd=list
+
 
 
 #-------- (3f) Objects - "wroom" ----------------------------------------------
@@ -1279,52 +1478,28 @@ Request:
 
    quick_do.php?obj=wroom&cmd=<COMMAND>&wrid=<WROOM_ID>
 
-   quick_do.php?obj=wroom&cmd=list&with=<WITH>&lstyle=<LIST_STYLE>
+   # list
+   quick_do.php?obj=wroom&cmd=list&with=<WITH>&filter_...=<FILTER>
 
 Options:
 
-   <COMMAND> = "list" | "info" | "delete" | "join" | "new_game"
+   <COMMAND> = "info" | "list" | "delete" | "join" | "new_game"
 
    <WROOM_ID> = id of waiting-room-entry
 
-   <WITH> = optional with-option to deep-load recursive data (see commands)
+   <FILTER> = optional filter-options (see commands)
 
-   <LIST_STYLE> = see list-style in section (2d)
+   <WITH> = optional with-option to include additional data-fields (see commands)
 
 
 Commands:
 
-   # NOT IMPLEMENTED: to-specify (TODO)
-   "list" : returns list of suitable game-offers from waiting-room
-      - required opts: VIEW
-      - optional opts: USER_ID, LIST_STYLE, WITH
-
-      - Errors:
-         - all errors of: [E-LOGIN], [E-GEN]
-
-      - Result (JSON) = // also see specs/db/table-Waitingroom.txt
-
-         {
-            "list_object" : "wroom",
-            "list_size" : 3,
-            "list_offset" : 0,
-            "list_limit" : 0,
-            "list_order" : "", # TODO order of list + direction '+|-' (field-names, comma-separated), ""=standard-order
-            "list_result" : [
-               {
-                  "id" : 123, # waiting-room-id
-               },
-               ...
-            ]
-         }
-
-   # NOT fully IMPLEMENTED: to-impl (calc-game-settings)
    "info" : returns information on single game-offer from waiting-room
       - required opts: WROOM_ID
       - optional opts: WITH
 
       - WITH-option:
-         - 'user_id' : additionally return user_id-data (handle + name) for message correspondent
+         - 'user_id' : return additional user_id-data of game-offerer
 
       - Errors:
          - all errors of: [E-LOGIN], [E-GEN]
@@ -1334,7 +1509,7 @@ Commands:
             "id" : 1,          # waitingroom-id
             "user" : {
                "id" : 111,          # user-id of sender, 0=server-message
-               # the following fields only if WITH-option contain 'user_id'
+               # the following fields only if WITH-option contains 'user_id'
                "handle" : "user1",  # USER_HANDLE
                "name" : "name1",    # user name
                "country" : "xe",    # country-code
@@ -1387,13 +1562,70 @@ Commands:
             "time_byo" : 225,          # time-limit byo-time [1 unit = 1 hour, 15 hour = 1 DGS-day]; extra-time for Fischer-time
             "time_periods" : 8,        # time-limit byo-periods: periods (for JAP), stones (for CAN), unused (=0, for FIS)
 
-            "restrictions" : "",       # empty = no restrictions (offer can be joined); non-empty = info-string with restrictions
+            "restrictions" : "",       # empty = no restrictions defined for game-offer; non-empty = info-string with restrictions.
+                                       #    despite having restrictions, a game-offer may be joinable (e.g. for hidden entries)
+            "join" : 1,                # 1=game-offer can be joined, 0=can not be joined (because your own or unsuitable)
+            "join_warn" : "",          # if not-empty, contains warning about joining (about max-games reached soon)
+            "join_err" : "",           # if not-empty, contains error-reasons why joining not possible (e.g. max-games reached,
+                                       #    MPG already joined, opponents max-games reached)
             "opp_started_games" : 0,   # number of games already started with opponent
-            "calc_type" : 1,           # quality of setings: 1=probable-setting (conv/proper depends on rating), 2=fix-calculated
-            "calc_color" : "black",    # probable/fix color of logged-in user: double | fairkomi | nigiri | black | white
+            "calc_type" : 1,           # quality of setings: 0=own-game-offer, 1=probable-setting (conv/proper depends on rating),
+                                       #    2=fix-calculated, 3=MPG (color/handicap/komi set by game-master)
+            "calc_color" : "black",    # probable/fix color of logged-in user: '' | mpg | double | fairkomi | nigiri | black | white
+                                       #    '' (=empty) if color cannot be determined (e.g. if users are not rated for conventional-handicap)
+
+            # the next two fields are '' (empty = non-int/float), if calc_type is 0 or 3 or 'calc_color' is empty:
             "calc_handicap" : 3,       # probable/fix handicap
-            "calc_komi" : 6.5,         # probably/fix komi
+            "calc_komi" : 6.5,         # probably/fix komi, field omitted for fair-komi
          }
+
+   "list" : returns list of all game-offers from waiting-room
+      - optional opts: FILTER, WITH
+
+      - FILTER-options:
+         - 'filter_suitable=VAL' :
+            - VAL = '1' : only finding suitable game-offers (default)
+            - VAL = '0' : find all game-offers
+
+      - WITH-option:
+         - 'user_id' : return additional user_id-data of game-offerer
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN]
+
+      - Result (JSON) = // also see specs/db/table-Waitingroom.txt
+
+         {
+            "list_object" : "wroom",
+            "list_totals": -1,
+            "list_size" : 3,
+            "list_offset" : 0,
+            "list_limit" : 0,
+            "list_order" : "user.rating-,user.handle+",
+            "list_result" : [
+               # each list-element looks like the output for the "info"-command (without the std-fields),
+               # except for the fields mentioned below in "Exception Notes"
+               {
+                  "id" : 123, # waiting-room-id
+                  ...
+               },
+               ...
+            ]
+         }
+
+         - Exception Notes:
+            - Field 'join' : this field is included, but shows only the result of general checks.
+              The more precise checks are only done for the 'info'-command as they would be
+              too expensive for a list of elements. So if the value is "0" the offer can for
+              sure NOT be joined, but if the value is "1" it can still be that the offer
+              is not joinable. But this can only happen if the users max-games have been reached.
+
+            - Field 'join_warn' and 'join_err' : these fields are only included for the 'info'-command.
+              They contain reasons and warnings based on the detail-checks for the 'join'-field,
+              and are therefore not included for the 'list'-command as well.
+
+            - Field 'opp_started_games' : this field is not included for the 'list'-command,
+              because it is too expensive to be caclculated for a list.
 
    "delete" : deletes own game-offer from waiting-room
       - required opts: WROOM_ID
@@ -1444,6 +1676,7 @@ Examples for wroom-commands:
    quick_do.php?obj=wroom&cmd=join&wrid=123
 
 
+
 #-------- (3g) Objects - "bulletin" -------------------------------------------
 
 Purpose:
@@ -1458,7 +1691,7 @@ Request:
    quick_do.php?obj=bulletin&cmd=<COMMAND>&bid=<BULLETIN_ID>
 
    # list
-   quick_do.php?obj=bulletin&cmd=list&with=<WITH>&lstyle=<LIST_STYLE>
+   quick_do.php?obj=bulletin&cmd=list&with=<WITH>
 
 Options:
 
@@ -1466,15 +1699,13 @@ Options:
 
    <BULLETIN_ID> = list of comma-separated bulletin-ids
 
-   <WITH> = optional with-option to deep-load recursive data (see commands)
-
-   <LIST_STYLE> = see list-style in section (2d)
+   <WITH> = optional with-option to include additional data-fields (see commands)
 
 
 Commands:
 
    "list" : returns list of unread bulletins
-      - optional opts: LIST_STYLE, WITH
+      - optional opts: WITH
 
       - WITH-option:
          - 'user_id' : additionally return user_id-data (handle + name) for author
@@ -1485,10 +1716,11 @@ Commands:
       - Result (JSON) = // also see specs/db/table-Bulletin.txt
          {
             "list_object" : "bulletin",
+            "list_totals": -1,
             "list_size" : 2,
             "list_offset" : 0,
             "list_limit" : 0,
-            "list_order" : "", # TODO order of list + direction '+|-' (field-names, comma-separated), ""=standard-order
+            "list_order" : "time_published-",
             "list_result" : [
                {
                   "id" : 123, # bulletin-id
@@ -1501,7 +1733,7 @@ Commands:
                   "time_updated" : "YYYY-MM-DD hh:mm:ss",   # last-changed-time
                   "author" : {
                      "id" : 111,          # user-id of author
-                     # the following fields only if WITH-option contain 'user_id'
+                     # the following fields only if WITH-option contains 'user_id'
                      "handle" : "user1",  # USER_HANDLE
                      "name" : "Name1",    # user name
                   },
@@ -2047,7 +2279,8 @@ Response:
                            - ZEN_GO(N)
          game_prio       : priority set by user for game
                            - value-range: -32768..32767
-                           - 0 = not-loaded (e.g. for other user) or no prio
+                           - 0 = not-loaded or no prio
+                           - NOTE: prio is only loaded if next-game-order for status-games is priority
          opponent_lastaccess_date : date of opponents last-access-date in format "YYYY-MM-DD hh:mm:ss[ GMT]" (timezone only if not logged-in)
          handicap        : number of handicap-stones
 
@@ -2262,6 +2495,8 @@ Errors:
       - invalid_command : invalid command for quick-suite
       - invalid_args : missing or invalid arguments given
       - unknown_entry : entry identified by id could not be found
+      - mysql_connect_failed : connection to database failed
+      - mysql_select_db_failed : database could not be selected
       - mysql_query_failed : database query failed
       - mail_failure : sending mail for notification failed (e.g. for quota-exceeded)
       - not_allowed_for_guest : guests are not allowed to use some of quick-suite pages
@@ -2356,6 +2591,11 @@ in use (JAP=Japanese, CAN=Canadian, FIS=Fischer-time):
    - [TL] Time-limit : static time-settings for game
    - [TR] Time-Remaining : dynamic time of game for each player
 
+The main specification for time-limits and time-remaining you can find in:
+
+   - time-specifications defined in 'specs/time.txt'
+
+
 * General format:
 
    - Format of TIME is:
@@ -2363,48 +2603,18 @@ in use (JAP=Japanese, CAN=Canadian, FIS=Fischer-time):
       - "0h" = zero time
       - one of DAYS or HOURS is optional
 
-* Format of [TL] Time-limit:
-
-   - basic format is: "TYPE: MAINTIME + EXTRATIME"
-      - TYPE: J=Japanese-byo-yomi, C=Canadian-byo-yomi, F=Fischer-time
-      - one of MAINTIME or EXTRATIME is optional for types JAP/CAN
-      - for Fischer-time only EXTRATIME is optional
-      - time without EXTRATIME => game has only absolute time
-      - time without MAINTIME  => game starts right off in byo-yomi
-
-   - Format of MAINTIME is always like TIME-format (see above)
-
    - Format of EXTRATIME for types:
       - type=JAP: "TIME * Z" = TIME byo-yomi-time per move and Z extra periods
       - type=CAN: "TIME / Z" = TIME byo-yomi-time per Z stones
       - type=FIS: "TIME"     = TIME extra-time per move
 
+* Format of [TL] Time-limit:
+
    - Examples:
       - see "include/time_functions.php", method "echo_time_limit()"
       - see "scripts/tests/TimeFormatTest.php", test-method "test_echo_time_limit()"
 
-      - "J: 7d 3h + 2d * 5"
-      - "J: 7d 3h"            (absolute)
-      - "J: 2d * 5"           (only extra-time)
-
-      - "C: 7d 3h + 9d / 3"
-      - "C: 7d 3h"            (absolute)
-      - "C: 9d / 3"           (only extra-time)
-
-      - "F: 7d 3h + 2d"
-      - "F: 7d 3h"            (absolute)
-
-
 * Format of [TR] Time-remaining:
-
-   - some basic formats:
-      - "TYPE: 0h" = all time is up for all types TYPE=J|C|F = no remaining time
-
-      - "TYPE: MAINTIME (-)"  = no extra-time defined (=absolute time)
-      - "TYPE: EXTRATIME (-)" = no main-time defined, or main-time is up and only extra-time left
-
-      - "TYPE: REM-MAINTIME (+ EXTRATIME)"   = remaining main-time left, byo-yomi not started
-      - "TYPE: STARTED-EXTRATIME (REM-EXTRATIME)" = main-time is up, byo-yomi started
 
    - Examples:
       - see "include/time_functions.php", method "echo_time_remaining()"
@@ -2412,49 +2622,6 @@ in use (JAP=Japanese, CAN=Canadian, FIS=Fischer-time):
          - for TYPE=JAP: "test_echo_time_remaining_jap()"
          - for TYPE=CAN: "test_echo_time_remaining_can()"
          - for TYPE=FIS: "test_echo_time_remaining_fischer()"
-
-
-   - Format for type=JAP:
-
-      - "J: TIME (-)"            = TIME=absolute remaining-MAINTIME (no EXTRATIME); OR
-                                   TIME=remaining-EXTRATIME, main-time is up, no byo-yomi-period left
-
-      - "J: TIME (+ EXTRATIME)"  = TIME=remaining-MAINTIME + remaining-EXTRATIME, byo-yomi CAN be or CAN NOT be started;
-                                   EXTRATIME is not always original-EXTRATIME because of the possibility of added-time.
-
-      - "J: TIME (EXTRATIME)"    = TIME=remaining-time of current started byo-yomi-period + remaining-EXTRATIME
-
-      - Examples:
-         - "J: 0h"                  ; time is up
-         - "J: 10d 7h (-)",         ; absolute-remaining-maintime; OR main-time is up, in byo-yomi, no extra-time any more
-         - "J: 10d 7h (+ 2d * 7)"   ; remaining-maintime, byo-yomi not started yet
-         - "J: 1d (+ 2d * 4)"       ; remaining time of started byo-yomi-period, has still main-time (maybe by added time)
-         - "J: 1d 3h (2d * 4)"      ; remaining time of started byo-yomi-period, remaining extra-time, main-time is up
-
-   - Format for type=CAN:
-
-      - "C: TIME (-)"            = TIME=absolute remaining-MAINTIME (no EXTRATIME)
-
-      - "C: TIME (+ EXTRATIME)"  = TIME=remaining-MAINTIME + original-EXTRATIME, byo-yomi not started yet
-
-      - "C: REM-EXTRATIME (EXTRATIME)" = remaining-EXTRATIME + original-EXTRATIME, byo-yomi started
-
-      - Examples:
-         - "C: 0h"                  ; time is up
-         - "C: 10d 7h (-)"          ; absolute-remaining-maintime
-         - "C: 10d 7h (+ 6d / 4)"   ; remaining-maintime, byo-yomi not started yet
-         - "C: 1d 3h / 2 (6d / 4)"  ; remaining-extra-time, in byoyomi
-
-   - Format for type=FIS:
-
-      - "F: TIME (-)"            = TIME=absolute remaining-MAINTIME (no EXTRATIME)
-
-      - "F: TIME (+ EXTRATIME)"  = TIME=remaining-MAINTIME + original-EXTRATIME
-
-      - Examples:
-         - "F: 0h"                  ; time is up
-         - "F: 10d 7h (-)"          ; absolute-remaining-maintime
-         - "F: 10d 7h (+ 2d)"       ; remaining-main-time, with original extra-time
 
 
 #-------- (7) Classes and Files -----------------------------------------------
@@ -2485,13 +2652,15 @@ but are not necessarily going to be implemented (soon or at all).
    - [quick] encoding JSON: http://www.dragongoserver.net/forum/read.php?forum=10&thread=27755#29511
 
 * game-obj:
-   - handle MPG with game-players >2, handle setup for multi-player-game
    - handle fair-komi
+   - handle MPG with game-players >2, handle setup for multi-player-game
    - replace_notes, add_time, set_prio
-   - list-cmd: include shapes, all views, type=running/finished uid=all
 
 * message-obj:
    - handle send-invitation / send-dispute
+
+* wroom-obj:
+   - new-game
 
 * user-obj:
    - user-vacation, picture, list-cmd
