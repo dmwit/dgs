@@ -1,4 +1,4 @@
-module Network.DGS.Types.Errors where
+module Network.DGS.Errors where
 
 import Data.Maybe
 

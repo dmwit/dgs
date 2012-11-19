@@ -1,21 +1,28 @@
-module Network.DGS.Types.User where
+module Network.DGS.User where
 
 import Data.Ratio
 import Data.SGF.Types hiding (round)
 import Data.Text
-import Network.DGS.Types.Base
+import Network.DGS.Misc
+import Network.DGS.Time
+
+-- | Specifically for strings that happen to be users' nicknames.
+newtype Nick = Nick { getNick :: Text } deriving (Eq, Ord, Show, Read)
 
 newtype ELO = ELO { getELO :: Rational } deriving (Eq, Ord, Show, Read)
+
+-- | for use with 'ID'
+data UserTag
 
 -- | The parameter is typically 'Extra' or '()'.
 data GamePlayer a = GamePlayer
 	{ this      :: ID UserTag
 	, prisoners :: Integer
-	, remaining :: TimeRemaining
+	, remaining :: Remaining
 	, start     :: ELO       -- TODO: what does this do for users that have no rating?
 	, end       :: Maybe ELO -- TODO: does this distinguish between finished games between unrated players and unfinished games between rated players?
 	, extra     :: a
-	} deriving (Eq, Ord, Show, Read)
+	} deriving (Eq, Ord, Show)
 
 -- | A few extra details about a user that can be retrieved at the same time
 -- you retrieve a game, if you like.

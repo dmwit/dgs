@@ -1,4 +1,31 @@
-module Network.DGS.Types.Game where
+{-# LANGUAGE FlexibleInstances, OverloadedStrings #-}
+module Network.DGS.Game where
+
+import Control.Applicative
+import Data.Aeson
+import Data.Aeson.Types
+import Data.SGF.Types
+import Data.Text
+import Data.Time
+import Network.DGS.Misc
+import Network.DGS.Time
+import Network.DGS.User
+
+-- | for use with 'ID'
+data GameTag
+
+-- | for use with 'ID'
+data TournamentTag
+
+-- | for use with 'ID'
+data ShapeTag
+
+-- | for use with 'ID'
+data MoveTag
+
+instance FromJSON (ID GameTag) where
+	parseJSON (Object v) = ID <$> v .: "id"
+	parseJSON v = typeMismatch "game ID number" v
 
 data DoubleGame
 	= Single
@@ -26,8 +53,8 @@ data Status
 	| Setup
 	| Play
 	| Pass
-	| Score
-	| Score2
+	| Scoring
+	| Scoring2
 	| Finished
 	deriving (Eq, Ord, Show, Read, Bounded, Enum)
 
@@ -55,7 +82,7 @@ data Game a = Game
 	, score              :: Maybe GameResult -- ^ 'Nothing' for unfinished games
 	, rated              :: Bool
 	, style              :: Style
-	, ruleset            :: RulesetGo        -- ^ 'Chinese' or 'Japanese'
+	, ruleset            :: RuleSetGo        -- ^ 'Chinese' or 'Japanese'
 	, size               :: Integer
 	, komi               :: Rational
 	, jigoMode           :: JigoMode
@@ -66,10 +93,10 @@ data Game a = Game
 	, start              :: UTCTime
 	, lastMove           :: UTCTime
 	, timeRunsOnWeekends :: Bool
-	, timeLimit          :: TimeLimit
+	, timeLimit          :: Limit
 	, move               :: (ID MoveTag, Maybe Point)
 	, nextPlayer         :: (Color, ID UserTag)
 	, ko                 :: Bool             -- ^ did the last move take a ko?
 	, black              :: GamePlayer a
 	, white              :: GamePlayer a
-	} deriving (Eq, Ord, Show, Read)
+	} deriving (Eq, Ord, Show)

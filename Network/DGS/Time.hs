@@ -1,4 +1,4 @@
-module Network.DGS.Types.Time where
+module Network.DGS.Time where
 
 import Data.Time.Clock
 
@@ -10,7 +10,7 @@ data ByoyomiStyle
 	= Japanese { periods :: Integer } -- ^ You have this many chances to take longer than the byoyomi time to play a move. If you use up all your chances, you lose.
 	| Canadian { stones  :: Integer } -- ^ You must play this many moves in each byoyomi time. If you don't play enough moves in a byoyomi time, you lose.
 	| Fischer                         -- ^ Every move increases your main time by the byoyomi time (up to a maximum of the game's original main time limit). If your main time runs out, you lose.
-	deriving (Eq, Ord, Show)
+	deriving (Eq, Ord, Show, Read)
 
 -- The style looks a bit weird below: the haddocks for Absolute and Main have
 -- seemingly spurious blank lines after them and then some | style comments
