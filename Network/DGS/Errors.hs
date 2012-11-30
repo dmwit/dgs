@@ -42,7 +42,7 @@ kinds l = case l of
 	InvalidCommand       -> [GeneralKind]
 	InvalidArgs          -> [GeneralKind]
 	UnknownEntry         -> [GeneralKind]
-	MysqlQueryFailed     -> [GeneralKind]
+	MySQLQueryFailed     -> [GeneralKind]
 	MailFailure          -> [GeneralKind]
 	UnknownRuleset       -> [GameCreationKind]
 	HandicapRange        -> [GameCreationKind]
@@ -58,8 +58,8 @@ kinds l = case l of
 	GameAlreadyAccepted  -> [GameCreationKind]
 	WrongDisputeGame     -> [GameCreationKind]
 	WrongPlayers         -> [GameCreationKind]
-	MysqlStartGame       -> [GameCreationKind]
-	MysqlDataCorruption  -> [GameCreationKind]
+	MySQLStartGame       -> [GameCreationKind]
+	MySQLDataCorruption  -> [GameCreationKind]
 	FeatureDisabled      -> [GameCreationKind]
 	InternalError        -> [GameCreationKind, MoveKind]
 	GameNotStarted       -> [GameKind]
@@ -72,24 +72,26 @@ kinds l = case l of
 	MoveProblem          -> [MoveKind]
 	NotYourTurn          -> [MoveKind]
 	InvalidAction        -> [MoveKind, MessageSendKind]
-	MysqlUpdateGame      -> [MoveKind]
-	MysqlInsertMove      -> [MoveKind]
+	MySQLUpdateGame      -> [MoveKind]
+	MySQLInsertMove      -> [MoveKind]
 	OpponentNotFound     -> [MoveKind]
 	ReceiverNotFound     -> [MoveKind, MessageGetKind]
-	MysqlInsertMessage   -> [MoveKind]
+	MySQLInsertMessage   -> [MoveKind]
 	UnknownMessage       -> [MessageGetKind]
 	FolderNotFound       -> [MessageGetKind]
 	BulkmessageSelf      -> [MessageGetKind]
 	ReplyInvalid         -> [MessageSendKind]
 	FolderForbidden      -> [MessageSendKind]
 	GameDeleteInvitation -> [MessageSendKind]
+	MySQLConnectFailed   -> [GeneralKind]
+	MySQLSelectDBFailed  -> [GeneralKind]
 
 labels k = case k of
 	LoginKind        -> [NotLoggedIn, WrongUserid, WrongPassword, CookiesDisabled, FeverVault, LoginDenied, IpBlockedGuestLogin]
-	GeneralKind      -> [ServerDown, InvalidCommand, InvalidArgs, UnknownEntry, MysqlQueryFailed, MailFailure]
-	GameCreationKind -> [UnknownRuleset, HandicapRange, KomiRange, InvalidSnapshot, InvalidSnapshotChar, MismatchSnapshot, NoInitialRating, TimeLimitTooSmall, IllegalPosition, UnknownGame, InvitedToUnknownGame, GameAlreadyAccepted, WrongDisputeGame, WrongPlayers, MysqlStartGame, MysqlDataCorruption, FeatureDisabled, InternalError]
+	GeneralKind      -> [ServerDown, InvalidCommand, InvalidArgs, UnknownEntry, MySQLQueryFailed, MailFailure, MySQLConnectFailed, MySQLSelectDBFailed]
+	GameCreationKind -> [UnknownRuleset, HandicapRange, KomiRange, InvalidSnapshot, InvalidSnapshotChar, MismatchSnapshot, NoInitialRating, TimeLimitTooSmall, IllegalPosition, UnknownGame, InvitedToUnknownGame, GameAlreadyAccepted, WrongDisputeGame, WrongPlayers, MySQLStartGame, MySQLDataCorruption, FeatureDisabled, InternalError]
 	GameKind         -> [UnknownGame, GameNotStarted, GameFinished, InvalidGameStatus, DatabaseCorrupted, AlreadyPlayed, NotGamePlayer]
-	MoveKind         -> [InvalidCoord, MoveProblem, NotYourTurn, InternalError, InvalidAction, MysqlUpdateGame, MysqlInsertMove, OpponentNotFound, ReceiverNotFound, MysqlInsertMessage]
+	MoveKind         -> [InvalidCoord, MoveProblem, NotYourTurn, InternalError, InvalidAction, MySQLUpdateGame, MySQLInsertMove, OpponentNotFound, ReceiverNotFound, MySQLInsertMessage]
 	MessageGetKind   -> [UnknownMessage, ReceiverNotFound, FolderNotFound, BulkmessageSelf]
 	MessageSendKind  -> [InvalidAction, ReplyInvalid, FolderForbidden, GameDeleteInvitation]
 
@@ -105,7 +107,7 @@ jsonName l = case l of
 	InvalidCommand       -> "invalid_command"
 	InvalidArgs          -> "invalid_args"
 	UnknownEntry         -> "unknown_entry"
-	MysqlQueryFailed     -> "mysql_query_failed"
+	MySQLQueryFailed     -> "mysql_query_failed"
 	MailFailure          -> "mail_failure"
 	UnknownRuleset       -> "unknown_ruleset"
 	HandicapRange        -> "handicap_range"
@@ -120,8 +122,8 @@ jsonName l = case l of
 	GameAlreadyAccepted  -> "game_already_accepted"
 	WrongDisputeGame     -> "wrong_dispute_game"
 	WrongPlayers         -> "wrong_players"
-	MysqlStartGame       -> "mysql_start_game"
-	MysqlDataCorruption  -> "mysql_data_corruption"
+	MySQLStartGame       -> "mysql_start_game"
+	MySQLDataCorruption  -> "mysql_data_corruption"
 	FeatureDisabled      -> "feature_disabled"
 	UnknownGame          -> "unknown_game"
 	GameNotStarted       -> "game_not_started"
@@ -134,10 +136,10 @@ jsonName l = case l of
 	MoveProblem          -> "move_problem"
 	NotYourTurn          -> "not_your_turn"
 	InternalError        -> "internal_error"
-	MysqlUpdateGame      -> "mysql_update_game"
-	MysqlInsertMove      -> "mysql_insert_move"
+	MySQLUpdateGame      -> "mysql_update_game"
+	MySQLInsertMove      -> "mysql_insert_move"
 	OpponentNotFound     -> "opponent_not_found"
-	MysqlInsertMessage   -> "mysql_insert_message"
+	MySQLInsertMessage   -> "mysql_insert_message"
 	UnknownMessage       -> "unknown_message"
 	ReceiverNotFound     -> "receiver_not_found"
 	FolderNotFound       -> "folder_not_found"
@@ -146,6 +148,8 @@ jsonName l = case l of
 	ReplyInvalid         -> "reply_invalid"
 	FolderForbidden      -> "folder_forbidden"
 	GameDeleteInvitation -> "game_delete_invitation"
+	MySQLConnectFailed   -> "mysql_connect_failed"
+	MySQLSelectDBFailed  -> "mysql_select_db_failed"
 
 label s = case s of
 	"not_logged_in"           -> Just NotLoggedIn
@@ -159,7 +163,7 @@ label s = case s of
 	"invalid_command"         -> Just InvalidCommand
 	"invalid_args"            -> Just InvalidArgs
 	"unknown_entry"           -> Just UnknownEntry
-	"mysql_query_failed"      -> Just MysqlQueryFailed
+	"mysql_query_failed"      -> Just MySQLQueryFailed
 	"mail_failure"            -> Just MailFailure
 	"unknown_ruleset"         -> Just UnknownRuleset
 	"handicap_range"          -> Just HandicapRange
@@ -174,8 +178,8 @@ label s = case s of
 	"game_already_accepted"   -> Just GameAlreadyAccepted
 	"wrong_dispute_game"      -> Just WrongDisputeGame
 	"wrong_players"           -> Just WrongPlayers
-	"mysql_start_game"        -> Just MysqlStartGame
-	"mysql_data_corruption"   -> Just MysqlDataCorruption
+	"mysql_start_game"        -> Just MySQLStartGame
+	"mysql_data_corruption"   -> Just MySQLDataCorruption
 	"feature_disabled"        -> Just FeatureDisabled
 	"unknown_game"            -> Just UnknownGame
 	"game_not_started"        -> Just GameNotStarted
@@ -188,10 +192,10 @@ label s = case s of
 	"move_problem"            -> Just MoveProblem
 	"not_your_turn"           -> Just NotYourTurn
 	"internal_error"          -> Just InternalError
-	"mysql_update_game"       -> Just MysqlUpdateGame
-	"mysql_insert_move"       -> Just MysqlInsertMove
+	"mysql_update_game"       -> Just MySQLUpdateGame
+	"mysql_insert_move"       -> Just MySQLInsertMove
 	"opponent_not_found"      -> Just OpponentNotFound
-	"mysql_insert_message"    -> Just MysqlInsertMessage
+	"mysql_insert_message"    -> Just MySQLInsertMessage
 	"unknown_message"         -> Just UnknownMessage
 	"receiver_not_found"      -> Just ReceiverNotFound
 	"folder_not_found"        -> Just FolderNotFound
@@ -200,6 +204,8 @@ label s = case s of
 	"reply_invalid"           -> Just ReplyInvalid
 	"folder_forbidden"        -> Just FolderForbidden
 	"game_delete_invitation"  -> Just GameDeleteInvitation
+	"mysql_connect_failed"    -> Just MySQLConnectFailed
+	"mysql_select_db_failed"  -> Just MySQLSelectDBFailed
 	_ -> Nothing
 
 unsafeLabel s = fromMaybe (error ("unsafeLabel applied to unknown JSON error name: " ++ s)) (label s)
@@ -232,7 +238,7 @@ data Label
 	| InvalidCommand       -- ^ invalid command for quick-suite
 	| InvalidArgs          -- ^ missing or invalid arguments given
 	| UnknownEntry         -- ^ entry identified by id could not be found
-	| MysqlQueryFailed     -- ^ database query failed
+	| MySQLQueryFailed     -- ^ database query failed
 	| MailFailure          -- ^ sending mail for notification failed (e.g. for quota-exceeded)
 	| UnknownRuleset       -- ^ unknown ruleset (known: JAPANESE, CHINESE)
 	| HandicapRange        -- ^ invalid handicap specified
@@ -248,8 +254,8 @@ data Label
 	| GameAlreadyAccepted  -- ^ game has already been accepted, probable race-condition
 	| WrongDisputeGame     -- ^ players do not match with dispute-game
 	| WrongPlayers         -- ^ players do not match with game-request
-	| MysqlStartGame       -- ^ database-error on starting game
-	| MysqlDataCorruption  -- ^ data is corrupted -> contact admin
+	| MySQLStartGame       -- ^ database-error on starting game
+	| MySQLDataCorruption  -- ^ data is corrupted -> contact admin
 	| FeatureDisabled      -- ^ feature (probably tournament) is disabled
 	| InternalError        -- ^ 'GameCreationKind': data is inconsistent -> contact admin; 'MoveKind': board-data could not be loaded -> contact admin
 	| GameNotStarted       -- ^ game has not started yet (still in invitation-mode)
@@ -262,11 +268,11 @@ data Label
 	| MoveProblem          -- ^ @pass@-move only allowed for @move@-command
 	| NotYourTurn          -- ^ it is not your turn to move in the game; (error not occuring for commands @delete@, @resign@)
 	| InvalidAction        -- ^ 'MoveKind': unknown action; 'MessageSendKind': failure on checking to send a message, detailed error-texts found in @error_texts@-field
-	| MysqlUpdateGame      -- ^ database query to update game failed
-	| MysqlInsertMove      -- ^ database query to insert move failed
+	| MySQLUpdateGame      -- ^ database query to update game failed
+	| MySQLInsertMove      -- ^ database query to insert move failed
 	| OpponentNotFound     -- ^ database corrupt regarding game-opponent -> contact admin
 	| ReceiverNotFound     -- ^ 'MoveKind': message-receiver for notify could not be found -> contact admin; 'MessageGetKind': given recipient(s) can not be found
-	| MysqlInsertMessage   -- ^ database query to insert message for notify failed
+	| MySQLInsertMessage   -- ^ database query to insert message for notify failed
 	| UnknownMessage       -- ^ unknown message-id specified
 	| FolderNotFound       -- ^ specified folder is unknown for current user
 	| BulkmessageSelf      -- ^ bulk-messages can not be sent to oneself
@@ -291,4 +297,6 @@ data Label
 	                       -- * NEW-folder (folder-id=2) and SENT-folder (folder-id=5) are not allowed for old message to store into
 	| GameDeleteInvitation -- ^ error on game-deletion/decline-invitation detected,
 	                       -- nothing found to be deleted, which could mean that the invitation was already declined
+	| MySQLConnectFailed   -- ^ connection to database failed
+	| MySQLSelectDBFailed  -- ^ database could not be selected
 	deriving (Eq, Ord, Show, Read, Enum, Bounded)
