@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 module Network.DGS.Errors where
 
 import Data.Maybe
@@ -23,6 +24,12 @@ data Error
 	= KnownError   Label  String
 	| UnknownError String String -- ^ it's a bug in the library if one of these ever gets built
 	deriving (Eq, Ord, Show, Read)
+
+-- | Converts an 'UnknownError' that actually has a label we know and turns it
+-- into a 'KnownError'; all other errors are left unchanged.
+findError :: Error -> Error
+findError (UnknownError (label -> Just l) d) = KnownError l d
+findError e = e
 
 -- | Extract just the \"details\" part of an error -- that is, the second
 -- field of each constructor.
