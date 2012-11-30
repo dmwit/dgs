@@ -17,6 +17,8 @@ data LoginResult
 	| LoginSuccess
 	deriving (Eq, Ord, Show, Read)
 
+-- TODO: see http://www.dragongoserver.net/forum/read.php?forum=10&thread=33711
+
 -- | Almost all commands require you to be logged in. Logging in does not count
 -- against your quota; one side effect is that this will report success even if
 -- you have already exceeded your quota.
