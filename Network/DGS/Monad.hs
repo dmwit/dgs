@@ -100,9 +100,9 @@ setQuota q = modify (\(cookies, quota) -> (cookies, Just q))
 
 object obj cmd opts = do
 	server <- asks fst
-	v <- get decode (uri server "quick_do.php") (("obj",obj):("cmd",cmd):opts)
-	case v of
-		Nothing -> throwError NoParse
+	value  <- get decode (uri server "quick_do.php") (("obj",obj):("cmd",cmd):opts)
+	case value of
+		Nothing     -> throwError NoParse
 		Just (q, v) -> do
 			maybe (return ()) setQuota q
 			either throwError return v
