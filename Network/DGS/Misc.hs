@@ -10,9 +10,9 @@ import Network.DGS.Errors
 import qualified Data.ByteString.Lazy.Char8 as L
 
 -- | the address of the development server, @\"dragongoserver.sourceforge.net\"@
-development :: String
+development :: Server
 -- | the address of the most well-known public server, @\"www.dragongoserver.net\"@
-production  :: String
+production  :: Server
 development = "dragongoserver.sourceforge.net"
 production  = "www.dragongoserver.net"
 
