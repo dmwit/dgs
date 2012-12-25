@@ -1,5 +1,9 @@
 {-# LANGUAGE FlexibleInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses, NoMonomorphismRestriction, OverloadedStrings, TypeFamilies #-}
-module Network.DGS.Monad where
+module Network.DGS.Monad
+	( module Network.DGS.Monad
+	, module Control.Monad.Error
+	, module Control.Monad.RWS
+	) where
 
 import Control.Applicative
 import Control.Monad.Base
@@ -64,6 +68,9 @@ instance FromJSON (Maybe DGSException) where
 			("1.0.15:2", _ , l) -> Just . Problem . maybe (UnknownError error) KnownError l <$> o .: "error_msg"
 			(_         , _ , _) -> pure . Just . UnknownVersion $ version
 	parseJSON v = typeMismatch "DGS response with version and error included" v
+
+-- TODO: refactor so we don't have to explicitly pass a host to 'uri' (at the
+-- cost of making things less modular)?
 
 -- only call this with ASCII host and path parameters, please
 uri :: Server -> String -> Request m

@@ -16,12 +16,6 @@ production  :: Server
 development = "dragongoserver.sourceforge.net"
 production  = "www.dragongoserver.net"
 
-data LoginResponse
-	= LoginProblem Error
-	| LoginNoParse String -- ^ it's a bug in the library if one of these ever gets built
-	| LoginSuccess
-	deriving (Eq, Ord, Show, Read)
-
 -- documentation for how login.php behaves in quick mode is available at
 -- http://www.dragongoserver.net/forum/read.php?forum=10&thread=33711
 
@@ -29,19 +23,21 @@ data LoginResponse
 -- reporting; is that really right?
 
 -- | Almost all commands require you to be logged in. Logging in does not count
--- against your quota; one side effect is that this will report success even if
--- you have already exceeded your quota.
-login :: String -- ^ server, e.g. 'development' or 'production'
-      -> String -- ^ user name
+-- against your quota; one side effect is that this will succeed even if you
+-- have already exceeded your quota.
+login :: String -- ^ user name
       -> String -- ^ password
-      -> DGS LoginResponse
-login server username password = get (result . L.unpack) loc opts where
-	loc  = uri server "login.php"
+      -> DGS ()
+login username password = do
+	server <- asks fst
+	action <- get (result . L.unpack) (uri server "login.php") opts
+	action
+	where
 	opts = [("quick_mode", "1"), ("userid", username), ("passwd", password)]
 
-	result "\nOk" = LoginSuccess
-	result (parseError -> Just e) = LoginProblem e
-	result s = LoginNoParse s
+	result "\nOk" = return ()
+	result (parseError -> Just e) = throwError (Problem e)
+	result _ = throwError NoParse
 
 	parseError s = findError <$> do
 		s      <- stripPrefix "[#Error: " s
