@@ -30,14 +30,15 @@ login :: String -- ^ user name
       -> DGS ()
 login username password = do
 	server <- asks fst
-	action <- get (result . L.unpack) (uri server "login.php") opts
+	action <- get result (uri server "login.php") opts
 	action
 	where
 	opts = [("quick_mode", "1"), ("userid", username), ("passwd", password)]
 
-	result "\nOk" = return ()
-	result (parseError -> Just e) = throwError (Problem e)
-	result _ = throwError NoParse
+	result bs = case L.unpack bs of
+		"\nOk" -> return ()
+		(parseError -> Just e) -> throwError (DGSProblem e)
+		_ -> throwError (NoParse bs)
 
 	parseError s = findError <$> do
 		s      <- stripPrefix "[#Error: " s

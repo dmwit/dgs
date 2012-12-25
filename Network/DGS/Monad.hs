@@ -51,9 +51,9 @@ instance FromJSON Quota where
 	parseJSON v = typeMismatch "DGS response with quota included" v
 
 data DGSException
-	= UnknownVersion String  -- ^ currently, only 1.0.15:2 is supported
-	| Problem Error          -- ^ something was wrong with your request
-	| NoParse                -- ^ the server sent invalid JSON or valid JSON outside the schema it promised to deliver
+	= UnknownVersion String  -- ^ currently, only 1.0.15:3 is supported
+	| DGSProblem Error       -- ^ something was wrong with your request
+	| NoParse L.ByteString   -- ^ the server sent this response, which was outside the format it promised to send (e.g. not valid JSON, or JSON but not in the right schema, etc.)
 	| CustomException String -- ^ somebody (not this library) called 'fail'
 	deriving (Eq, Ord, Show, Read)
 
@@ -64,8 +64,8 @@ instance FromJSON (Maybe DGSException) where
 		version <- o .: "version"
 		error   <- o .: "error"
 		case (version, error, label error) of
-			("1.0.15:2", "", _) -> pure Nothing
-			("1.0.15:2", _ , l) -> Just . Problem . maybe (UnknownError error) KnownError l <$> o .: "error_msg"
+			("1.0.15:3", "", _) -> pure Nothing
+			("1.0.15:3", _ , l) -> Just . DGSProblem . maybe (UnknownError error) KnownError l <$> o .: "error_msg"
 			(_         , _ , _) -> pure . Just . UnknownVersion $ version
 	parseJSON v = typeMismatch "DGS response with version and error included" v
 
@@ -106,10 +106,10 @@ getQuota   = gets snd
 setQuota q = modify (\(cookies, quota) -> (cookies, Just q))
 
 object obj cmd opts = do
-	server <- asks fst
-	value  <- get decode (uri server "quick_do.php") (("obj",obj):("cmd",cmd):opts)
-	case value of
-		Nothing     -> throwError NoParse
+	server   <- asks fst
+	response <- get id (uri server "quick_do.php") (("obj",obj):("cmd",cmd):opts)
+	case decode response of
+		Nothing     -> throwError (NoParse response)
 		Just (q, v) -> do
 			maybe (return ()) setQuota q
 			either throwError return v
