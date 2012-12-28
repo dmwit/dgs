@@ -87,7 +87,7 @@ form t f r_ q = do
 	now     <- liftIO getCurrentTime
 	resp    <- firstState ((\(a,b) -> (b,a)) . updateCookieJar resp_ r now)
 	return . f . responseBody $ resp
-	where firstState f = state (\(s1, s2) -> let (a, s1') = f s1 in (a, (s1, s2)))
+	where firstState f = state (\(s1, s2) -> let (a, s1') = f s1 in (a, (s1', s2)))
 
 get  = form methodGet
 post = form methodPost
