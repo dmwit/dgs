@@ -1,0 +1,185 @@
+###
+### Description of mysql tables:  Bulletin
+###
+
+Here you'll find some infos about all the bulletin-board tables.
+
+Legend:
+   - B  = Bulletin
+   - TD = Tournament Director
+   - TP = Tournament Participant (registered player)
+   - T  = Tournament, e.g. T-owner
+   - UL = user-list
+   - tid = tournament-id
+
+Important Notes:
+   - Life-Cycle of Bulletin (author = admin):
+      - author = admin: NEW -> SHOW -> ARCHIVE (on expire-date or by admin)
+      - author = non-admin:
+         - (a)  NEW -> PENDING : ADM-ACK -> SHOW -> ARCHIVE (on expire-date or by admin)
+         - (b1) NEW -> PENDING : ADM-NACK -> HIDDEN (back-to-author with AdminNote) -> PENDING
+         - (b2) NEW -> PENDING : ADM-NACK -> DELETE
+
+Permission-Matrix for writing bulletins:
+   Who (user-type) is allowed to write what (Category) bulletins addressed
+   to whom (TargetType) ?
+
+   - NOTES:
+     - normal user can NOT create bulletin (except PRIV_MSG for MP-games),
+       but Admin must create and assign it to the author setting USER_EDIT-flag.
+       Then user can update it!
+
+   - Category = MAINT : server maintenance announcements
+     - create allowed by Admin; Target: ALL, UL, MPG
+
+   - Category = ADM_MSG : admin announcements, game-/user-admin-stuff, etc
+     - create allowed by Admin; Target: ALL, UL, MPG
+
+   - Category = TOURNEY : tournament announcement on DGS, for non-DGS tournaments use tournament-forum
+     - create allowed by Admin; Target: ALL, UL, (MPG)
+     - update allowed by user;  Target: ALL, UL
+
+   - Category = TNEWS : tournament-specific news / announcements
+     - create allowed by Admin, T-Admin, TD, T-owner; Target: TD (private T-news), TP (public T-news)
+
+   - Category = FEATURE : feature-info
+     - create allowed by Admin; Target: ALL, UL, TD, TP, MPG
+
+   - Category = PRIV_MSG : user-to-users messages (non-Ads)
+     - create allowed by Admin; Target: ALL, UL, TD, TP, MPG
+     - create allowed by GP;    Target: MPG
+     - update allowed by user;  Target: UL
+
+   - Category = AD : user-to-users advertisements (=pay me money for something Go-related)
+     - create allowed by Admin; Target: ALL, UL, (MPG)
+     - update allowed by user;  Target: ALL, UL
+
+
+###########################################################################
+## --- Bulletin ---
+
+Description:
+   Table to store bulletins, mainly used for maintenance-announcements to all users,
+   that shouldn't be handled with the private-message system and is more "prominently"
+   than the forums.
+
+| Field       | Type                                                                | Null | Key | Default             | Extra          |
++-------------+---------------------------------------------------------------------+------+-----+---------------------+----------------+
+| ID          | int(11)                                                             | NO   | PRI | NULL                | auto_increment |
+| uid         | int(11)                                                             | NO   |     | NULL                |                |
+| LockVersion | tinyint(3) unsigned                                                 | NO   |     | 0                   |                |
+| Category    | enum('MAINT','ADM_MSG','TOURNEY','TNEWS','FEATURE','PRIV_MSG','AD') | NO   |     | PRIV_MSG            |                |
+| Status      | enum('NEW','PENDING','REJECTED','SHOW','ARCHIVE','DELETE')          | NO   | MUL | NEW                 |                |
+| TargetType  | enum('ALL','TD','TP','UL','MPG')                                    | NO   |     | NULL                |                |
+| Flags       | tinyint(3) unsigned                                                 | NO   |     | 0                   |                |
+| PublishTime | datetime                                                            | NO   |     | 0000-00-00 00:00:00 |                |
+| ExpireTime  | datetime                                                            | NO   |     | 0000-00-00 00:00:00 |                |
+| tid         | int(11)                                                             | NO   |     | 0                   |                |
+| gid         | int(11)                                                             | NO   |     | 0                   |                |
+| CountReads  | mediumint(8) unsigned                                               | NO   |     | 0                   |                |
+| AdminNote   | varchar(255)                                                        | NO   |     |                     |                |
+| Subject     | varchar(255)                                                        | NO   |     | NULL                |                |
+| Text        | text                                                                | NO   |     | NULL                |                |
+| Lastchanged | datetime                                                            | NO   |     | 0000-00-00 00:00:00 |                |
+
+
+## Fields:
+
+* uid : author of bulletin, FK to Players.ID
+
+* LockVersion : version-field for optimistic locking
+
+* Category : bulletin-type, can be filtered upon by (future) user-profile
+   - MAINT = maintenance announcement
+   - ADM_MSG = message by admin
+   - TOURNEY = announcements for new tournaments (no tid yet)
+   - TNEWS = announcement for specific tournament, e.g. tournament-news
+   - FEATURE = announcement/info about feature, e.g. "did you know this ..."
+   - PRIV_MSG = private announcement
+   - AD = advertisement
+   - NOTE: also see permission-matrix above table-fields
+
+* Status :
+   - NEW = new bulletin-entry
+   - PENDING = pending bulletin, needs ACK or NACK by admin to publish
+   - REJECTED = hidden bulletin, user-change rejected by admin,
+     only visible to admin and author on bulletin-editor,
+     should be accompanied by admin-note about reason for rejection
+   - SHOW = show bulletin publically to targeted group
+   - ARCHIVE = archived bulletin, only showed on archive-page
+   - DELETE = bulletin, that should be deleted
+
+* TargetType :
+   - ALL = bulletin shown to ALL DGS-users (Ref_ID := 0)
+   - TD = bulletin shown to tournament-director of referenced tournament (Ref_ID := tid)
+   - TP = bulletin shown to tournament-participants of referenced tournament (Ref_ID := tid)
+   - UL = bulletin shown to User-List (Ref_ID := 0)
+   - NOTE: no default defined in DB, because it MUST be set by application
+
+* Flags : admin-flags of bulletin
+   - 0x01 = created by admin
+   - 0x02 = changeable by user
+
+* PublishTime : defines order of bulletins
+
+* ExpireTime : cron sets bulletin-entry to ARCHIVED-status if ExpireTime has past
+
+* tid : FK to Tournament.ID
+   - 0 = no reference to tournament (default)
+   - >0 = tournament-id for Bulletin.TargetType=TP|TD + Bulletin.Category=TNEWS
+
+* gid : FK to Games.ID
+   - 0 = no reference to game (default)
+   - >0 = game-id for Bulletin.TargetType=MPG
+
+* CountReads : counter, increased by each user marking bulletin as read
+
+* AdminNote : optional note by admin to bulletin-author on rejected bulletin
+   - gives author chance to correct bulletin
+
+* Subject : subject/title of bulletin
+
+* Text : main-text of bulletin (optional)
+
+* Lastchanged : date of last-update of bulletin
+
+
+
+###########################################################################
+## --- BulletinRead ---
+
+Description:
+   Table to store if user has read bulletin.
+
+| Field | Type    | Null | Key | Default | Extra |
++-------+---------+------+-----+---------+-------+
+| bid   | int(11) | NO   | PRI | NULL    |       |
+| uid   | int(11) | NO   | PRI | NULL    |       |
+
+
+## Fields:
+
+* bid : bulletin-id, FK to Bulletin.ID
+
+* uid : user having marked bulletin as read, FK to Players.ID
+
+
+
+###########################################################################
+## --- BulletinTarget ---
+
+Description:
+   Table to store recipients for bulletin of TargetType=UL (user-list).
+
+| Field | Type    | Null | Key | Default | Extra |
++-------+---------+------+-----+---------+-------+
+| bid   | int(11) | NO   | PRI | NULL    |       |
+| uid   | int(11) | NO   | PRI | NULL    |       |
+
+
+## Fields:
+
+* bid : bulletin-id, FK to Bulletin.ID
+
+* uid : recipient of bulletin of TargetType=UL (user-list), FK to Players.ID
+
