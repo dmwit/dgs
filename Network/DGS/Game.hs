@@ -1,9 +1,8 @@
-{-# LANGUAGE FlexibleInstances, OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Network.DGS.Game where
 
 import Control.Applicative
 import Data.Aeson
-import Data.Aeson.Types
 import Data.SGF.Types
 import Data.Text
 import Data.Time
@@ -22,10 +21,7 @@ data ShapeTag
 
 -- | for use with 'ID'
 data MoveTag
-
-instance FromJSON (ID GameTag) where
-	parseJSON (Object v) = ID <$> v .: "id"
-	parseJSON v = typeMismatch "game ID number" v
+instance FromJSON (ID GameTag) where parseJSON = parseID "game"
 
 data DoubleGame
 	= Single

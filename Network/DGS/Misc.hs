@@ -1,7 +1,9 @@
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE OverloadedStrings, ViewPatterns #-}
 module Network.DGS.Misc where
 
 import Control.Applicative
+import Data.Aeson
+import Data.Aeson.Types
 import Data.List
 import Data.List.Split
 import Data.Maybe
@@ -50,3 +52,6 @@ login username password = do
 -- | Phantom type to prevent the mixing of different kinds of IDs -- game IDs,
 -- tournament IDs, move IDs, user IDs, etc.
 newtype ID a = ID { getID :: Integer } deriving (Eq, Ord, Show, Read)
+
+parseID t (Object v) = ID <$> v .: "id"
+parseID t v = typeMismatch (t ++ " ID number") v
