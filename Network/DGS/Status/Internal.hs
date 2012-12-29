@@ -1,4 +1,7 @@
-module Network.DGS.Status.Internal where
+module Network.DGS.Status.Internal
+	( module Network.DGS.Status.Internal
+	, word8
+	) where
 
 import Control.Applicative
 import Data.Attoparsec as A
