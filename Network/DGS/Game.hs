@@ -21,7 +21,6 @@ data ShapeTag
 
 -- | for use with 'ID'
 data MoveTag
-instance FromJSON (ID GameTag) where parseJSON = parseID "game"
 
 data DoubleGame
 	= Single

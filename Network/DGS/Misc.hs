@@ -53,5 +53,6 @@ login username password = do
 -- tournament IDs, move IDs, user IDs, etc.
 newtype ID a = ID { getID :: Integer } deriving (Eq, Ord, Show, Read)
 
-parseID t (Object v) = ID <$> v .: "id"
-parseID t v = typeMismatch (t ++ " ID number") v
+instance FromJSON (ID a) where
+	parseJSON (Object v) = ID <$> v .: "id"
+	parseJSON v = typeMismatch "object with ID number" v
