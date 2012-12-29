@@ -1,0 +1,5 @@
+description of quick_status: "current format of data-lines" for bulletins doesn't match sample bulletin line (and the meaning of "count" is not explained)
+old complaint: no encodings discussed anywhere (even on newly created content like subject lines of bulletins)
+time zone of quick-suite dates?
+reference to db/table-Bulletin.txt instead of db/table-Bulletins.txt
+TargetType MPG not listed in db/table-Bulletins.txt under the long-form descriptions of TargetType's
