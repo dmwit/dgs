@@ -2,7 +2,6 @@ module Network.DGS.Status.Message where
 
 import Data.Attoparsec
 import Data.ByteString
-import Data.Text.Encoding
 import Data.Time
 import Network.DGS.Misc
 import Network.DGS.User
@@ -39,16 +38,14 @@ instance Atto Message where
 		mid_      <- comma >> attoparse
 		fid_      <- comma >> attoparse
 		category_ <- comma >> attoparse
-		sender_   <- comma >> quotedField
+		sender_   <- comma >> attoparse
 		subject_  <- comma >> quotedField
 		date_     <- comma >> attoparse
 		return Message
 			{ mid      = mid_
 			, fid      = fid_
 			, category = category_
-			-- nicks can only contain a-z, A-Z, 0-9, and -_+, which are pretty
-			-- much the same in all encodings, so just take a stab at one
-			, sender   = Nick $ decodeUtf8 sender_
+			, sender   = sender_
 			, subject  = subject_
 			, date     = date_
 			}

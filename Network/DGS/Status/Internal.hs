@@ -6,8 +6,10 @@ module Network.DGS.Status.Internal
 import Control.Applicative
 import Data.Attoparsec as A
 import Data.ByteString (ByteString)
+import Data.Text.Encoding
 import Data.Time
 import Network.DGS.Misc
+import Network.DGS.User
 import System.Locale
 import qualified Data.ByteString.Char8 as C
 import qualified Data.ByteString       as W
@@ -52,3 +54,7 @@ instance Atto UTCTime where
 		case parseTime defaultTimeLocale "%F %T" (C.unpack contents) of
 			Just  t -> return t
 			Nothing -> fail $ "couldn't parse date " ++ C.unpack contents
+
+-- nicks can only contain a-z, A-Z, 0-9, and -_+, which are pretty
+-- much the same in all encodings, so just take a stab at one
+instance Atto Nick where attoparse = Nick . decodeUtf8 <$> quotedField
