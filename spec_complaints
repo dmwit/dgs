@@ -3,3 +3,5 @@ old complaint: no encodings discussed anywhere (even on newly created content li
 time zone of quick-suite dates?
 reference to db/table-Bulletin.txt instead of db/table-Bulletins.txt
 TargetType MPG not listed in db/table-Bulletins.txt under the long-form descriptions of TargetType's
+in the spec for quick-status, the "game" header doesn't have quotes around the game_type but the actual game descriptions do
+sample quick-status output doesn't have handicaps in the sample output
