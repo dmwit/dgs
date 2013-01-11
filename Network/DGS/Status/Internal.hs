@@ -9,6 +9,7 @@ import Data.Attoparsec as A
 import Data.ByteString (ByteString)
 import Data.Text.Encoding
 import Data.Time
+import Network.DGS.Game (Style(..))
 import Network.DGS.Misc
 import Network.DGS.User
 import System.Locale
@@ -62,3 +63,19 @@ instance Atto UTCTime where
 -- nicks can only contain a-z, A-Z, 0-9, and -_+, which are pretty
 -- much the same in all encodings, so just take a stab at one
 instance Atto Nick where attoparse = Nick . decodeUtf8 <$> quotedField
+
+instance Atto Style where
+	attoparse = go <|> teamGo <|> zenGo where
+		go     = string (C.pack "GO") >> return Plain
+		teamGo = do
+			string (C.pack "TEAM_GO(")
+			n <- natural
+			word8 (enum ':')
+			m <- natural
+			word8 (enum ')')
+			return (Team n m)
+		zenGo  = do
+			string (C.pack "ZEN_GO(")
+			n <- natural
+			word8 (enum ')')
+			return (Zen n)

@@ -60,28 +60,6 @@ instance Atto Status where
 		, "SCORE2" --> Scoring2
 		]
 
-instance Atto Style where
-	attoparse = quoted (go <|> teamGo <|> zenGo) where
-		quoted p = do
-			word8 (enum '\'')
-			v <- p
-			word8 (enum '\'')
-			return v
-
-		go     = string (pack "GO") >> return Plain
-		teamGo = do
-			string (pack "TEAM_GO(")
-			n <- natural
-			word8 (enum ':')
-			m <- natural
-			word8 (enum ')')
-			return (Team n m)
-		zenGo  = do
-			string (pack "ZEN_GO(")
-			n <- natural
-			word8 (enum ')')
-			return (Zen n)
-
 instance Atto Int16 where
 	attoparse = natural >>= \n -> if inRange (-32768,32767) n then return (fromIntegral n) else fail $ "number out of range for an Int16: " ++ show n
 
@@ -97,10 +75,16 @@ parseGameWith f = tag 'G' Game
 	<*> column
 	<*> column
 	<*> column
-	<*> column
+	<*> (comma >> quoted attoparse)
 	<*> (f <$> column)
 	<*> column
 	<*> column
+
+quoted p = do
+	word8 (enum '\'')
+	v <- p
+	word8 (enum '\'')
+	return v
 
 instance Atto (Game Int16) where attoparse = parseGameWith id
 instance Atto (Game ()   ) where attoparse = parseGameWith (const ())
