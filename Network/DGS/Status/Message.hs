@@ -1,5 +1,6 @@
 module Network.DGS.Status.Message where
 
+import Control.Applicative
 import Data.Attoparsec
 import Data.ByteString
 import Data.Time
@@ -33,19 +34,10 @@ instance Atto Category where
 		]
 
 instance Atto Message where
-	attoparse = do
-		word8 (enum 'M')
-		mid_      <- comma >> attoparse
-		fid_      <- comma >> attoparse
-		category_ <- comma >> attoparse
-		sender_   <- comma >> attoparse
-		subject_  <- comma >> quotedField
-		date_     <- comma >> attoparse
-		return Message
-			{ mid      = mid_
-			, fid      = fid_
-			, category = category_
-			, sender   = sender_
-			, subject  = subject_
-			, date     = date_
-			}
+	attoparse = tag 'M' Message
+		<*> column
+		<*> column
+		<*> column
+		<*> column
+		<*> (comma >> quotedField)
+		<*> column

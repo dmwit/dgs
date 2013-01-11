@@ -85,42 +85,22 @@ instance Atto Style where
 instance Atto Int16 where
 	attoparse = natural >>= \n -> if inRange (-32768,32767) n then return (fromIntegral n) else fail $ "number out of range for an Int16: " ++ show n
 
--- TODO: make this prettier:
---   * abstract comma >> attoparse
---   * use Applicative to make this prettier
 parseGameWith :: (Int16 -> a) -> Parser (Game a)
-parseGameWith f = do
-	word8 (enum 'G')
-	gid_                <- comma >> attoparse
-	opponent_           <- comma >> attoparse
-	nextToMove_         <- comma >> attoparse
-	lastMove_           <- comma >> attoparse
-	timeRemaining_      <- comma >> attoparse
-	action_             <- comma >> attoparse
-	status_             <- comma >> attoparse
-	mid_                <- comma >> attoparse
-	tid_                <- comma >> attoparse
-	sid_                <- comma >> attoparse
-	style_              <- comma >> attoparse
-	priority_           <- comma >> attoparse
-	opponentLastAccess_ <- comma >> attoparse
-	handicap_           <- comma >> attoparse
-	return Game
-		{ gid                = gid_
-		, opponent           = opponent_
-		, nextToMove         = nextToMove_
-		, lastMove           = lastMove_
-		, timeRemaining      = timeRemaining_
-		, action             = action_
-		, status             = status_
-		, mid                = mid_
-		, tid                = tid_
-		, sid                = sid_
-		, style              = style_
-		, priority           = f priority_
-		, opponentLastAccess = opponentLastAccess_
-		, handicap           = handicap_
-		}
+parseGameWith f = tag 'G' Game
+	<*> column
+	<*> column
+	<*> column
+	<*> column
+	<*> column
+	<*> column
+	<*> column
+	<*> column
+	<*> column
+	<*> column
+	<*> column
+	<*> (f <$> column)
+	<*> column
+	<*> column
 
 instance Atto (Game Int16) where attoparse = parseGameWith id
 instance Atto (Game ()   ) where attoparse = parseGameWith (const ())

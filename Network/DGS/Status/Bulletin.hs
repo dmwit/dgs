@@ -1,5 +1,6 @@
 module Network.DGS.Status.Bulletin where
 
+import Control.Applicative
 import Data.Attoparsec hiding (count)
 import Data.ByteString hiding (count)
 import Data.Time
@@ -57,21 +58,11 @@ instance Atto Category where
 		]
 
 instance Atto Bulletin where
-	attoparse = do
-		word8 (enum 'B')
-		count_       <- comma >> attoparse
-		bid_         <- comma >> attoparse
-		targetType_  <- comma >> attoparse
-		category_    <- comma >> attoparse
-		publishTime_ <- comma >> attoparse
-		expireTime_  <- comma >> attoparse
-		subject_     <- comma >> field
-		return Bulletin
-			{ count       = count_
-			, bid         = bid_
-			, targetType  = targetType_
-			, category    = category_
-			, publishTime = publishTime_
-			, expireTime  = expireTime_
-			, subject     = subject_
-			}
+	attoparse = tag 'B' Bulletin
+		<*> column
+		<*> column
+		<*> column
+		<*> column
+		<*> column
+		<*> column
+		<*> (comma >> field)
