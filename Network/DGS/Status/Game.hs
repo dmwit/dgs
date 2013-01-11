@@ -30,8 +30,7 @@ data Game priority = Game
 	, style              :: Style
 	, priority           :: priority
 	, opponentLastAccess :: UTCTime
-	-- TODO: delete after checking the real server's output
-	-- , handicap           :: Integer
+	, handicap           :: Integer
 	} deriving (Eq, Ord, Show)
 
 instance Atto Color where
@@ -86,6 +85,9 @@ instance Atto Style where
 instance Atto Int16 where
 	attoparse = natural >>= \n -> if inRange (-32768,32767) n then return (fromIntegral n) else fail $ "number out of range for an Int16: " ++ show n
 
+-- TODO: make this prettier:
+--   * abstract comma >> attoparse
+--   * use Applicative to make this prettier
 parseGameWith :: (Int16 -> a) -> Parser (Game a)
 parseGameWith f = do
 	word8 (enum 'G')
@@ -102,8 +104,7 @@ parseGameWith f = do
 	style_              <- comma >> attoparse
 	priority_           <- comma >> attoparse
 	opponentLastAccess_ <- comma >> attoparse
-	-- TODO: delete after checking the real server's output
-	-- handicap_           <- comma >> attoparse
+	handicap_           <- comma >> attoparse
 	return Game
 		{ gid                = gid_
 		, opponent           = opponent_
@@ -118,8 +119,7 @@ parseGameWith f = do
 		, style              = style_
 		, priority           = f priority_
 		, opponentLastAccess = opponentLastAccess_
-		-- TODO: delete after checking the real server's output
-		-- , handicap           = handicap_
+		, handicap           = handicap_
 		}
 
 instance Atto (Game Int16) where attoparse = parseGameWith id
