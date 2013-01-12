@@ -7,7 +7,7 @@
 
 ## /*
 ## Dragon Go Server
-## Copyright (C) 2001-2012  Erik Ouchterlony, Jens-Uwe Gaspar
+## Copyright (C) 2001-2013  Erik Ouchterlony, Jens-Uwe Gaspar
 ##
 ## This program is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU Affero General Public License as
@@ -457,6 +457,8 @@ Purpose:
       - retrieve information about a game (info, game-notes);
         corresponding pages: "game.php", "gameinfo.php"
 
+         - save game-notes
+
       - retrieve list of games;
         corresponding pages: "status.php", "quick_status.php", "show_games.php"
 
@@ -479,12 +481,16 @@ Request:
    # info | get_notes
    quick_do.php?obj=game&cmd=<COMMAND>&gid=<GAME_ID>&with=<WITH>
 
+   # save_notes | hide_notes | show_notes
+   quick_do.php?obj=game&cmd=<COMMAND>&gid=<GAME_ID>&notes=<NOTES>
+
    # list
    quick_do.php?obj=game&cmd=list&view=<VIEW>&with=<WITH>&uid=<USER_ID>&filter_...=<FILTER>
 
 Options:
 
-   <COMMAND> = "info" | "get_notes" | "list" | "delete" | "set_handicap" | "move" | "resign" | "status_score" | "score"
+   <COMMAND> = "info" | "list" | "delete" | "set_handicap" | "move" | "resign" | "status_score" | "score" |
+               "get_notes" | "save_notes" | "hide_notes" | "show_notes"
 
    <AGREE> = for "score"-command: give agreement with current state of stones (dead/alive/neutral/dame) and score
       - 1 = agree
@@ -539,6 +545,10 @@ Options:
                - sgf-mode (without comma),   e.g. "bcpqmoeq"
                - sgf-mode (comma-separated), e.g. "bc,pq,mo,eq"
                - label-mode (comma-separated), e.g. "b17,q3,n5,e3"
+
+   <NOTES> = private game-notes
+      - optional game-notes for game-notes-operations
+
    <TOGGLE> = toggle-mode for "status_score" and "score" commands
       - "all" (default) = each given coordinate-point toggles the point-state and
         adjacent points of the same "group" (as the GUI does it)
@@ -578,7 +588,8 @@ Commands:
             "game_action" : 2,      # game-action as defined for [4.QST]
             "status" : "PLAY",      # game-status: KOMI | SETUP | PLAY | PASS | SCORE | SCORE2 | FINISHED
             "flags" : "HIDDENMSG",  # flags (comma-separated): HIDDENMSG (game contains hidden-messages), ADMRESULT (admin ended game),
-                                    #    TGDETACHED (detached tournament-game, see 'specs/db/table-Tournaments.txt')
+                                    #    TGDETACHED (detached tournament-game, see 'specs/db/table-Tournaments.txt'),
+                                    #    ATTACHEDSGF (there are SGFs attached to game)
             "score" : "",           # score for finished game only (same format as for game-object status_score-command); '' (=empty) if game not finished
 
             "game_type" : "GO",     # GO | TEAM_GO(N:M) | ZEN_GO (N); N,M >= 1
@@ -640,18 +651,6 @@ Commands:
             "white_gameinfo" : {    # game-info of white-user
                # same fields as described above for 'black_gameinfo'
             }
-         }
-
-   "get_notes" : retrieve game-notes
-      - required opts: GAME_ID
-
-      - Errors:
-         - all errors of: [E-LOGIN], [E-GEN]
-         - unknown_game : invalid game
-
-      - Result (JSON) =
-         {
-            "notes" : "",      # users game-notes (only for logged-in user)
          }
 
 
@@ -763,6 +762,7 @@ Commands:
                      "obs_mine" : 1,         # 1=observed game is one of logged-in user, 0=otherwise
                   }
 
+
    "delete" : deletes specified game
       - required opts: GAME_ID, MOVE_ID
       - optional opts: MESSAGE
@@ -854,6 +854,60 @@ Commands:
          - illegal_position : invalid coordinates used for stones to switch state
 
 
+   "get_notes" : retrieve game-notes
+      - required opts: GAME_ID
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN]
+         - unknown_game : invalid game
+
+      - Result (JSON) =
+         {
+            "hidden" : "0",    # hidden-state of game-notes on game-page: 1=hidden, 0=shown
+            "notes" : "",      # users game-notes (only for logged-in user)
+         }
+
+   "save_notes" : save private game-notes for game
+      - required opts: GID, NOTES
+         - to remove notes use empty NOTES-argument
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN]
+
+      - Result (JSON) =
+         {
+            "error_texts" : [          # empty array, if no "error" returned; otherwise list of error-texts
+               "err1", "err2", ...     # free error-texts
+            ],
+         }
+
+   "hide_notes" : hide private game-notes for game
+      - required opts: GID
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN]
+
+      - Result (JSON) =
+         {
+            "error_texts" : [          # empty array, if no "error" returned; otherwise list of error-texts
+               "err1", "err2", ...     # free error-texts
+            ],
+         }
+
+   "show_notes" : show private game-notes for game
+      - required opts: GID
+
+      - Errors:
+         - all errors of: [E-LOGIN], [E-GEN]
+
+      - Result (JSON) =
+         {
+            "error_texts" : [          # empty array, if no "error" returned; otherwise list of error-texts
+               "err1", "err2", ...     # free error-texts
+            ],
+         }
+
+
 Examples of game-playing cycle:
 
    # login setting cookie in HTTP-header storing: handle, sessioncode
@@ -927,9 +981,6 @@ Examples of game-playing cycle:
    # retrieve game-information (with all possible fields)
    do_quick.php?obj=game&cmd=info&gid=12345&lstyle=json&with=user_id,prio,notes,ratingdiff
 
-   # get game-notes
-   do_quick.php?obj=game&cmd=get_notes&gid=12345
-
    # retrieve list of (all) my status-games
    do_quick.php?obj=game&cmd=list&view=status&limit=all&with=user_id,prio,notes
 
@@ -953,6 +1004,15 @@ Examples of game-playing cycle:
 
    # retrieve list of all observed games
    do_quick.php?obj=game&cmd=list&view=observe&uid=all
+
+
+   # get game-notes
+   do_quick.php?obj=game&cmd=get_notes&gid=12345
+
+   # save game-notes, hide + unhide
+   do_quick.php?obj=game&cmd=save_notes&gid=12345&notes=NotesText
+   do_quick.php?obj=game&cmd=hide_notes&gid=12345
+   do_quick.php?obj=game&cmd=show_notes&gid=12345
 
 
 
