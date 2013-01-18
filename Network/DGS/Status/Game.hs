@@ -49,7 +49,10 @@ instance Atto Action where
 		11 -> return BidOrAccept
 		12 -> return ChooseColor
 		13 -> return Wait
-		_  -> fail "expecting one of the known action codes: 0-3 or 10-13"
+		n  -> fail
+		   $  "expecting one of the known action codes (0-3 or 10-13), but got "
+		   ++ show (n :: Integer)
+		   ++ " instead"
 
 instance Atto Status where
 	attoparse = choice
