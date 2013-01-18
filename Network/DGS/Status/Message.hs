@@ -34,7 +34,7 @@ instance Atto Category where
 		]
 
 instance Atto Message where
-	attoparse = tag 'M' Message
+	attoparse = "M" --> Message
 		<*> column
 		<*> column
 		<*> column

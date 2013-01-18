@@ -23,7 +23,6 @@ instance Atto RuleSetGo where
 	attoparse = "CHINESE" --> Chinese <|> "JAPANESE" --> Japanese
 
 instance Atto MultiplayerGame where
-	-- TODO: yep, definitely use this trick instead of "tag" in the other instances
 	attoparse = "MPG" --> MultiplayerGame
 		<*> column
 		<*> column

@@ -64,7 +64,7 @@ instance Atto Int16 where
 	attoparse = natural >>= \n -> if inRange (-32768,32767) n then return (fromIntegral n) else fail $ "number out of range for an Int16: " ++ show n
 
 parseGameWith :: (Int16 -> a) -> Parser (Game a)
-parseGameWith f = tag 'G' Game
+parseGameWith f = "G" --> Game
 	<*> column
 	<*> column
 	<*> column

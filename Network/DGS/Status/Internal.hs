@@ -42,8 +42,7 @@ natural = digits2Integer <$> takeWhile1 isDigit where
 	zero = enum '0'
 	nine = enum '9'
 
-column  = comma >> attoparse
-tag t c = word8 (enum t) >> return c
+column = comma >> attoparse
 
 class Atto a where attoparse :: Parser a
 instance Atto (ID a) where attoparse = ID <$> natural
