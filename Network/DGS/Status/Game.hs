@@ -40,7 +40,7 @@ instance Atto Limit where
 	attoparse = quotedField >> return (Absolute 0) -- TODO
 
 instance Atto Action where
-	attoparse = natural >>= \case
+	attoparse = attoparse >>= \case
 		0  -> return Unsupported
 		1  -> return PlaceHandicap
 		2  -> return Move
@@ -56,12 +56,13 @@ instance Atto Status where
 		[ "KOMI"   --> Komi
 		, "PLAY"   --> Play
 		, "PASS"   --> Pass
-		, "SCORE"  --> Scoring
+		-- SCORE2 must come before SCORE so that SCORE doesn't succeed and commit!
 		, "SCORE2" --> Scoring2
+		, "SCORE"  --> Scoring
 		]
 
 instance Atto Int16 where
-	attoparse = natural >>= \n -> if inRange (-32768,32767) n then return (fromIntegral n) else fail $ "number out of range for an Int16: " ++ show n
+	attoparse = attoparse >>= \n -> if inRange (-32768,32767) n then return (fromInteger n) else fail $ "number out of range for an Int16: " ++ show n
 
 parseGameWith :: (Int16 -> a) -> Parser (Game a)
 parseGameWith f = "G" --> Game

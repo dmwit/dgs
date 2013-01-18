@@ -35,6 +35,9 @@ quotedField = do
 	special x = x == enum '\'' || x == enum '\\'
 	pack    x = W.pack [x]
 
+integral = liftA2 (*) sign natural where
+	sign = (word8 (enum '-') >> return (-1))
+		<|> return 1
 natural = digits2Integer <$> takeWhile1 isDigit where
 	isDigit x      = x >= zero && x <= nine
 	digits2Integer = W.foldl' (\n d -> n * 10 + fromIntegral (d - zero)) 0
@@ -45,12 +48,8 @@ natural = digits2Integer <$> takeWhile1 isDigit where
 column = comma >> attoparse
 
 class Atto a where attoparse :: Parser a
-instance Atto (ID a) where attoparse = ID <$> natural
-
-instance Atto Integer where
-	attoparse = liftA2 (*) sign natural where
-		sign = (word8 (enum '-') >> return (-1))
-		    <|> return 1
+instance Atto (ID a)  where attoparse = ID <$> natural
+instance Atto Integer where attoparse = integral
 
 instance Atto UTCTime where
 	attoparse = do

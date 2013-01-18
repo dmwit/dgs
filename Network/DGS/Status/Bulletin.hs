@@ -49,6 +49,7 @@ instance Atto TargetType where
 instance Atto Category where
 	attoparse = choice
 		[ "MAINT"    --> Maintenance
+		-- ADM_MSG must come before AD so that AD doesn't succeed and commit!
 		, "ADM_MSG"  --> Administrative
 		, "TOURNEY"  --> NewTournament
 		, "TNEWS"    --> TournamentNews
