@@ -6,16 +6,12 @@ module Network.DGS.Status
 	, quickStatus
 	) where
 
--- TODO: clean up imports and exports
-import Control.Applicative
 import Data.Attoparsec as A
 import Data.ByteString as B
 import Data.ByteString.Lazy as B (toChunks)
-import Data.Int
 import Data.List
 import Data.Monoid
 import Network.DGS.Monad
-import Network.DGS.Misc
 import Network.DGS.Status.Bulletin
 import Network.DGS.Status.Game
 import Network.DGS.Status.Internal

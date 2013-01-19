@@ -1,10 +1,5 @@
 module Network.DGS.Status.Message where
 
-import Control.Applicative
-import Data.Attoparsec
-import Data.ByteString
-import Data.Time
-import Network.DGS.Misc
 import Network.DGS.User
 import Network.DGS.Message
 import Network.DGS.Status.Internal

@@ -1,10 +1,15 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 module Network.DGS.Status.Internal
-	( module Network.DGS.Status.Internal
-	, word8
+	( module Control.Applicative
+	, module Data.Attoparsec
+	, module Data.Time
+	, module Network.DGS.Misc
+	, module Network.DGS.Status.Internal
+	, ByteString
 	) where
 
 import Control.Applicative
+import Data.Attoparsec
 import Data.Attoparsec as A
 import Data.ByteString (ByteString)
 import Data.Text.Encoding

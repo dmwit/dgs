@@ -1,15 +1,10 @@
 {-# LANGUAGE LambdaCase #-}
-module Network.DGS.Status.Game where
+module Network.DGS.Status.Game (Game(..), Priority(..), Int16) where
 
-import Control.Applicative
-import Data.Attoparsec
-import Data.ByteString.Char8
 import Data.Int
 import Data.Ix
 import Data.SGF.Types (Color(..))
-import Data.Time
 import Network.DGS.Game hiding (Game(..))
-import Network.DGS.Misc
 import Network.DGS.Status.Internal
 import Network.DGS.Time hiding (style)
 import Network.DGS.User

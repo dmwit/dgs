@@ -1,12 +1,7 @@
 module Network.DGS.Status.Bulletin where
 
-import Control.Applicative
-import Data.Attoparsec hiding (count)
-import Data.ByteString hiding (count)
-import Data.Time
 import Network.DGS.Bulletin
-import Network.DGS.Status.Internal
-import Network.DGS.Misc
+import Network.DGS.Status.Internal hiding (count)
 
 -- | who is this bulletin shown to?
 data TargetType

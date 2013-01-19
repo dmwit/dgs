@@ -1,11 +1,7 @@
 module Network.DGS.Status.MultiplayerGame where
 
-import Control.Applicative
-import Data.Attoparsec
 import Data.SGF.Types
-import Data.Time
 import Network.DGS.Game hiding (Game(..))
-import Network.DGS.Misc
 import Network.DGS.Status.Internal
 
 data MultiplayerGame = MultiplayerGame
