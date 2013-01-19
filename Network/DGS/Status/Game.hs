@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances, LambdaCase #-}
+{-# LANGUAGE LambdaCase #-}
 module Network.DGS.Status.Game where
 
 import Control.Applicative
@@ -67,28 +67,29 @@ instance Atto Status where
 instance Atto Int16 where
 	attoparse = attoparse >>= \n -> if inRange (-32768,32767) n then return (fromInteger n) else fail $ "number out of range for an Int16: " ++ show n
 
-parseGameWith :: (Int16 -> a) -> Parser (Game a)
-parseGameWith f = "G" --> Game
-	<*> column
-	<*> column
-	<*> column
-	<*> column
-	<*> column
-	<*> column
-	<*> column
-	<*> column
-	<*> column
-	<*> column
-	<*> (comma >> quoted attoparse)
-	<*> (f <$> column)
-	<*> column
-	<*> column
-
 quoted p = do
 	word8 (enum '\'')
 	v <- p
 	word8 (enum '\'')
 	return v
 
-instance Atto (Game Int16) where attoparse = parseGameWith id
-instance Atto (Game ()   ) where attoparse = parseGameWith (const ())
+class    Priority a     where toPriority :: Int16 -> a
+instance Priority Int16 where toPriority = id
+instance Priority ()    where toPriority = const ()
+
+instance Priority a => Atto (Game a) where
+	attoparse = "G" --> Game
+		<*> column
+		<*> column
+		<*> column
+		<*> column
+		<*> column
+		<*> column
+		<*> column
+		<*> column
+		<*> column
+		<*> column
+		<*> (comma >> quoted attoparse)
+		<*> (toPriority <$> column)
+		<*> column
+		<*> column
