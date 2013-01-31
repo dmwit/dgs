@@ -6,3 +6,5 @@ TargetType MPG not listed in db/table-Bulletins.txt under the long-form descript
 in the spec for quick-status, the "game" header doesn't have quotes around the game_type but the actual game descriptions do
 sample quick-status output doesn't have handicaps in the games examples
 sample quick-status output has "TEAM_GO (2:2)" instead of "TEAM_GO(2:2)" for one sample
+sample quick-status output has a spurious "count" column
+bulletins' expire_time is optional! what other times are optional?

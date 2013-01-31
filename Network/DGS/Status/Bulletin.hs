@@ -23,12 +23,11 @@ data Category
 	deriving (Eq, Ord, Show, Read, Bounded, Enum)
 
 data Bulletin = Bulletin
-	{ count       :: Integer        -- TODO: what is this?
-	, bid         :: ID BulletinTag
+	{ bid         :: ID BulletinTag
 	, targetType  :: TargetType
 	, category    :: Category
 	, publishTime :: UTCTime
-	, expireTime  :: UTCTime        -- ^ the bulletin will automatically be marked as read at this time
+	, expireTime  :: Maybe UTCTime  -- ^ the bulletin will automatically be marked as read at this time
 	, subject     :: ByteString     -- ^ no encoding defined for now, but probably latin-1, utf-8, or utf-16
 	} deriving (Eq, Ord, Show, Read)
 
@@ -59,6 +58,6 @@ instance Atto Bulletin where
 		<*> column
 		<*> column
 		<*> column
-		<*> column
-		<*> column
+		<*> (comma >> maybeDate)
 		<*> (comma >> field)
+		where maybeDate = (Just <$> attoparse) <|> ("''" --> Nothing)
