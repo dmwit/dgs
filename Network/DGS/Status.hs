@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances, GADTs, ScopedTypeVariables, OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Network.DGS.Status
 	( Warning
 	, Status(..)
@@ -20,16 +20,16 @@ import Network.DGS.Status.MultiplayerGame
 
 -- TODO: look at and use the headers to make the parser more flexible
 
-type Warning  = ByteString
-data Status a = Status
+type Warning = ByteString
+data Status  = Status
 	{ warnings         :: [Warning]
 	, bulletins        :: [Bulletin]
 	, messages         :: [Message]
-	, games            :: [Game a]
+	, games            :: [Game]
 	, multiplayerGames :: [MultiplayerGame]
 	} deriving (Eq, Ord, Show)
 
-instance Monoid (Status a) where
+instance Monoid Status where
 	mempty = Status mempty mempty mempty mempty mempty
 	mappend (Status w b m g mpg) (Status w' b' m' g' mpg')
 		= Status (mappend w w') (mappend b b') (mappend m m') (mappend g g') (mappend mpg mpg')
@@ -40,7 +40,7 @@ injectMessage         m = mempty { messages         = [m] }
 injectGame            g = mempty { games            = [g] }
 injectMultiplayerGame g = mempty { multiplayerGames = [g] }
 
-instance Priority a => Atto (Status a) where
+instance Atto Status where
 	-- blank must come at the end and multiplayerGame must come before message
 	attoparse = mconcat <$> many (choice [warning, multiplayerGame, bulletin, message, game, comment, blank] <* string "\n") where
 		warning         = string "[#" >> injectWarning <$> restOfLine
@@ -52,74 +52,29 @@ instance Priority a => Atto (Status a) where
 		blank           = return mempty
 		restOfLine      = A.takeWhile (/= enum '\n')
 
-data Order a where
-	StatusPage :: Order () -- TODO: if the status page sort order is set to 'Priority', does the server return priorities for 'StatusPage' ordering?
-	Arbitrary  :: Order ()
-	LastMoved  :: Order ()
-	MoveCount  :: Order ()
-	Priority   :: Order Int16
-	TimeLeft   :: Order ()
+data Order = StatusPage | Arbitrary | LastMoved | MoveCount | Priority | TimeLeft
+	deriving (Eq, Ord, Show, Read, Bounded, Enum)
 
-instance Eq  (Order a) where a == b = compare a b == EQ
-instance Ord (Order a) where
-	compare StatusPage StatusPage = EQ
-	compare Arbitrary  Arbitrary  = EQ
-	compare LastMoved  LastMoved  = EQ
-	compare MoveCount  MoveCount  = EQ
-	compare Priority   Priority   = EQ
-	compare TimeLeft   TimeLeft   = EQ
-	compare StatusPage _          = LT
-	compare _          StatusPage = GT
-	compare Arbitrary  _          = LT
-	compare _          Arbitrary  = GT
-	compare LastMoved  _          = LT
-	compare _          LastMoved  = GT
-	compare MoveCount  _          = LT
-	compare _          MoveCount  = GT
-	compare Priority   _          = LT
-	compare _          Priority   = GT
-
-instance Show (Order a) where
-	show StatusPage = "StatusPage"
-	show Arbitrary  = "Arbitrary"
-	show LastMoved  = "LastMoved"
-	show MoveCount  = "MoveCount"
-	show Priority   = "Priority"
-	show TimeLeft   = "TimeLeft"
-
-instance Read (Order ()) where
-	readsPrec _ s =
-		"StatusPage" --> StatusPage ++
-		"Arbitrary"  --> Arbitrary  ++
-		"LastMoved"  --> LastMoved  ++
-		"MoveCount"  --> MoveCount  ++
-		"TimeLeft"   --> TimeLeft
-		where
-		t --> v = case stripPrefix t s of
-			Just rest -> [(v, rest)]
-			_ -> []
-
-instance Read (Order Int16) where
-	readsPrec _ s = case stripPrefix "Priority" s of
-		Just rest -> [(Priority, rest)]
-		_ -> []
-
-quickStatus :: forall a. Order a -> DGS (Status a)
+-- | The DGS server has a slight bug: it does not take the requested ordering
+-- into account when doing its caching. This means you may get data in the
+-- wrong order (and with wrong 'priority' fields) if you call 'quickStatus'
+-- with two different 'Order' parameters within the cache-invalidation period
+-- (usually a minute or so).
+quickStatus :: Order -> DGS Status
 quickStatus o = do
 	server   <- asks fst
 	response <- get id (uri server "quick_status.php") [("version","2"),("order",orderString)]
 	let strictResponse = strictify response
-	case (parseError strictResponse, parseOnly attoparser strictResponse) of
+	case (parseError strictResponse, parseOnly attoparse strictResponse) of
 		(Just e,  _) -> throwError (DGSProblem e)
 		(_, Left  _) -> throwError (NoParse response)
 		(_, Right v) -> return v
 	where
-	attoparser :: Parser (Status a)
-	(attoparser, orderString) = case o of
-		StatusPage -> (attoparse, "")
-		Arbitrary  -> (attoparse, "0")
-		LastMoved  -> (attoparse, "1")
-		MoveCount  -> (attoparse, "2")
-		Priority   -> (attoparse, "3")
-		TimeLeft   -> (attoparse, "4")
+	orderString = case o of
+		StatusPage -> ""
+		Arbitrary  -> "0"
+		LastMoved  -> "1"
+		MoveCount  -> "2"
+		Priority   -> "3"
+		TimeLeft   -> "4"
 	strictify = B.concat . B.toChunks

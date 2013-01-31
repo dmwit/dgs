@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
-module Network.DGS.Status.Game (Game(..), Priority(..), Int16) where
+module Network.DGS.Status.Game (Game(..), Int16) where
 
 import Data.Int
 import Data.Ix
@@ -9,9 +9,7 @@ import Network.DGS.Status.Internal
 import Network.DGS.Time hiding (style)
 import Network.DGS.User
 
--- | The @priority@ type variable will be either 'Int16' or '()', depending on
--- whether you ask for the games to be priority-ordered or not.
-data Game priority = Game
+data Game = Game
 	{ gid                :: ID GameTag
 	, opponent           :: Nick
 	, nextToMove         :: Color
@@ -23,7 +21,7 @@ data Game priority = Game
 	, tid                :: ID TournamentTag
 	, sid                :: ID ShapeTag
 	, style              :: Style
-	, priority           :: priority
+	, priority           :: Int16 -- ^ this will be zero unless you ask for 'Priority' ordering or the user has set priority as their status page's sort order and you ask for 'StatusPage' ordering
 	, opponentLastAccess :: UTCTime
 	, handicap           :: Integer
 	} deriving (Eq, Ord, Show)
@@ -68,11 +66,7 @@ quoted p = do
 	word8 (enum '\'')
 	return v
 
-class    Priority a     where toPriority :: Int16 -> a
-instance Priority Int16 where toPriority = id
-instance Priority ()    where toPriority = const ()
-
-instance Priority a => Atto (Game a) where
+instance Atto Game where
 	attoparse = "G" --> Game
 		<*> column
 		<*> column
@@ -85,6 +79,6 @@ instance Priority a => Atto (Game a) where
 		<*> column
 		<*> column
 		<*> (comma >> quoted attoparse)
-		<*> (toPriority <$> column)
+		<*> column
 		<*> column
 		<*> column
