@@ -73,8 +73,8 @@ quickStatus o = do
 	orderString = case o of
 		StatusPage -> ""
 		Arbitrary  -> "0"
-		LastMoved  -> "1"
-		MoveCount  -> "2"
-		Priority   -> "3"
-		TimeLeft   -> "4"
+		LastMoved  -> "LASTMOVED" -- or "1"
+		MoveCount  -> "MOVES"     -- or "2"
+		Priority   -> "PRIO"      -- or "3"
+		TimeLeft   -> "TIMELEFT"  -- or "4"
 	strictify = B.concat . B.toChunks
