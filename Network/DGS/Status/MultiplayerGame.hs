@@ -18,6 +18,7 @@ instance Atto Bool where
 instance Atto RuleSetGo where
 	attoparse = "CHINESE" --> Chinese <|> "JAPANESE" --> Japanese
 
+-- TODO: test this...?
 instance Atto MultiplayerGame where
 	attoparse = "MPG" --> MultiplayerGame
 		<*> column
