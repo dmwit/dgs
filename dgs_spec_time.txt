@@ -1,0 +1,182 @@
+# Topic: Time Management
+# Description: handling of time for DGS (Filter-Framework)
+# Author: Jens-Uwe Gaspar, DGS 'juga'
+
+## /*
+## Dragon Go Server
+## Copyright (C) 2001-2013  Erik Ouchterlony, Rod Ival, Jens-Uwe Gaspar
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU Affero General Public License as
+## published by the Free Software Foundation, either version 3 of the
+## License, or (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU Affero General Public License for more details.
+##
+## You should have received a copy of the GNU Affero General Public License
+## along with this program.  If not, see <http://www.gnu.org/licenses/>.
+## */
+
+
+On DGS there are 3 time-systems in use:
+
+   1. Japanese Byo-yomi
+   2. Canadian Byo-yomi
+   3. Fischer time
+
+#-------- (0) Time-Formats ----------------------------------------------------
+
+All text-representations are asserted on in unit-test TimeFormatTest.
+
+Text-representation of time-formats for time-limits:
+
+   "J: M + B * P"    : Japanese byo-yomi, M=main-time, B=Byo-yomi-time, P=Byo-yomi-periods
+   "J: M"            : Japanese byo-yomi, M=main-time, Absolute time (without byo-yomi)
+
+   "C: M + B / P"    : Canadian byo-yomi, M=main-time, B=Byo-yomi-time, P=Byo-yomi-stones
+   "C: M"            : Canadian byo-yomi, M=main-time, Absolute time (without byo-yomi)
+
+   "F: M + B"        : Fischer time, M=main-time, B=extra-time per move
+   "F: M"            : Fischer time, M=main-time, Absolute time (without extra-time)
+
+   For time-formats, there also exists the long-text form.
+
+
+Text-representation of time-formats for remaining-time:
+
+* all formats for JAP/CAN/FIS-time:
+   - m/B/b = "Xd Yh" (X days, Y hours), e.g. "2d 3h", "10d", "7h", "0h"
+   - p/P = [integer]
+
+   "J: m (-)"         : Japanese time, m main-time left (absolute time, no extra-periods)
+   "J: m (+ B * p)"   : Japanese time, m main-time left + extra-time (B time per move and p extra byo-yomi-periods left)
+   "J: b (B * p)"     : Japanese time, in byo-yomi (no '+'), b byo-yomi-time left + extra-time (B time per move and p extra byo-yomi-periods left)
+   "J: b (B * 0)"     : Japanese time, in byo-yomi (no '+'), b byo-yomi-time left, last byo-yomi-period
+
+   "C: m (-)"         : Canadian time, m main-time left (absolute time, no extra-time)
+   "C: m (+ B / P)"   : Canadian time, m main-time left + extra-time (B time per P stones)
+   "C: b / p (B / P)" : Canadian time, in byo-yomi (no '+'), b byo-yomi-time left for p stones to play (extra-time is B time per P stones)
+
+   "F: m (-)"         : Fischer time, m main-time left (absolute time, no extra-time)
+   "F: m (+ B)"       : Fischer time, m main-time left + extra-time (B time extra per move)
+
+* abbreviated time (T='J/C/F' for JAP/CAN/FIS-time):
+  for short-format time will always be given in hours (e.g. "51h", "240h")!
+
+
+#-------- (1) Japanese Byo-yomi -----------------------------------------------
+
+Format: "J: M + B * P"
+
+      M = start main-time
+      B = start byo-yomi-time (byotime)
+      P = start byo-yomi-periods (byoper)
+
+      m = remaining main-time during game
+      b = remaining byo-time (within started byo-yomi period)
+      p = remaining byo-periods
+
+   Absolute time (i.e. no byo-yomi): M>0, B<=0, P>=0
+   Time with byo-yomi:               M>=0, B>0, P>0
+
+Functioning:
+
+   When clock is running ...
+      main-time M is counted down to 0,
+         then byo-yomi period starts reducing byoper p by 1 and setting byotime b to start-byo-time B
+         byo-time is counted down to 0, then new byo-yomi period starts
+         if move is played with b>0, b is resetted to start-byo-time B
+   Time is up, when no main-time and no byo-time left: m=0, b=0
+
+Database representation:
+
+   type/M/B/P is stored in table Games in fields:
+      Byotype='J', Maintime, Byotime, Byoperiods
+
+   remaining-time m/b/p is stored in table Games in fields:
+      (Black|White)_Maintime/_Byotime/_Byoperiods
+
+   time-setup at game-start: m=M, b=0, p=-1
+
+   byo-yomi has been entered (once) if: p>=0
+      p is preserved after time-adding without byo-yomi reset
+
+   being in byo-yomi if: m=0
+
+
+
+#-------- (2) Canadian Byo-yomi -----------------------------------------------
+
+Format: "C: M + B / P"
+
+      M = start main-time
+      B = start byo-yomi-time (byotime)
+      P = start byo-yomi-stones (byoper)
+
+      m = remaining main-time during game
+      b = remaining byo-time (within started byo-yomi period)
+      p = remaining stones in byo-yomi-period
+
+   Absolute time (i.e. no byo-yomi): M>0, B<=0, P>=0
+   Time with byo-yomi:               M>=0, B>0, P>0
+
+Functioning:
+
+   When clock is running ...
+      main-time M is counted down to 0,
+         then byo-yomi period starts b=B and p=P
+         byo-time is counted down to 0 and byo-stone p is counted down by 1 stone for each move
+         if all byo-stones are played within byo-yime, b and p are resetted
+   Time is up, when no main-time, or no byo-time left while byo-stones > 0 : m=0, b=0, p>0
+
+Database representation:
+
+   type/M/B/P is stored in table Games in fields:
+      Byotype='C', Maintime, Byotime, Byoperiods
+
+   remaining-time m/b/p is stored in table Games in fields:
+      (Black|White)_Maintime/_Byotime/_Byoperiods
+
+   b>0 and p>=0 while m>0 is an invalid state
+
+   time-setup at game-start: m=M, b=0, p=-1
+
+   byo-yomi has been entered (once) if: p>=0
+      p is preserved after time-adding without byo-yomi reset
+
+   being in byo-yomi if: m=0
+
+
+#-------- (3) Fischer time ----------------------------------------------------
+
+Format: "F: M + B"
+
+      M = start main-time
+      B = extra-time for each played move
+
+      m = remaining main-time during game
+
+   Absolute time (i.e. no byo-yomi): M>0, B<=0, P=0
+   Time with extra-time:             M>=0, B>0, P=0
+
+Functioning:
+
+   When clock is running ...
+      main-time M is counted down,
+         for each move played extra-time B is added to main-time m
+   Time is up, when no main-time left : m=0
+
+Database representation:
+
+   type/M/B/P=0 is stored in table Games in fields:
+      Byotype='F', Maintime, Byotime, Byoperiods=0
+
+   remaining-time m/b=0/p=-1 is stored in table Games in fields:
+      (Black|White)_Maintime/_Byotime/_Byoperiods
+
+   time-setup at game-start: m=M, b=0, p=-1
+
+
