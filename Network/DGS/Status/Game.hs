@@ -68,10 +68,8 @@ instance Atto Remaining where
 			return (\m -> Main (Indefinite m n (Canadian p)))
 
 		cByo = do
-			pm <- string  "/ " >> natural
-			n  <- string " ("  >> hours
-			pn <- string " / " >> natural
-			string ")"
+			pm      <- string "/ " >> natural
+			(n, pn) <- string  " " >> parenthesized (liftA3 (\x y z -> (x,z)) hours (string " / ") natural)
 			return (\m -> CanadianByoyomi m pm n pn)
 
 		fMain = do
