@@ -36,14 +36,22 @@ data Limit
 -- amount originally apportioned to him at the beginning of the game. When an
 -- opponent adds time to a player currently in a byoyomi period, that period
 -- (and possibly all periods, at the opponent's disgression) is reset and the
--- player enters main time. The 'currentStyle' is never 'Fischer' (as
--- 'Fischer'-style games end whenever one player runs out of main time).
+-- player enters main time.
 data Remaining
 	= Main Limit -- ^ the player still has main time left
 
-	-- | the player has used up all their main time and is in a byoyomi period
-	| Byoyomi
-		{ current      :: DiffTime     -- ^ the amount of time remaining in the current period
-		, currentStyle :: ByoyomiStyle -- ^ for 'Japanese' style byoyomi: how many full periods the player still has; for 'Canadian' style byoyomi: how many stones the player must play before this period runs out
+	-- | the player has used up all their main time and is in a (Japanese-style) byoyomi period
+	| JapaneseByoyomi
+		{ current       :: DiffTime -- ^ the amount of time remaining in the current period
+		, extra         :: DiffTime -- ^ the amount of time available in a full period
+		, extraPeriods  :: Integer  -- ^ how many full periods remain
+		}
+
+	-- | the player has used up all their main time and is in a (Canadian-style) byoyomi period
+	| CanadianByoyomi
+		{ current       :: DiffTime -- ^ the amount of time remaining in the current period
+		, currentStones :: Integer  -- ^ how many stones must be played to finish this period
+		, extra         :: DiffTime -- ^ the amount of time available in a full period
+		, extraStones   :: Integer  -- ^ how many stones must be played to finish a full period
 		}
 	deriving (Eq, Ord, Show)
