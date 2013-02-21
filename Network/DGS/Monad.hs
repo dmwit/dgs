@@ -28,7 +28,7 @@ import qualified Data.Text                  as T
 -- | a monad stack to ease the use of http-conduit
 newtype DGS a = DGS { runDGS :: DGS' a } deriving (Functor, Applicative, Monad, MonadIO, MonadThrow, MonadUnsafeIO, MonadResource, MonadReader (Server, Manager), MonadState (CookieJar, Maybe Quota), MonadBase IO, MonadError DGSException)
 type DGS' = ErrorT DGSException (RWST (Server, Manager) () (CookieJar, Maybe Quota) (ResourceT IO))
-type Server = String -- ^ e.g. 'Network.DGS.production' or 'Network.DGS.development'
+type Server = S.ByteString -- ^ e.g. 'Network.DGS.production' or 'Network.DGS.development'
 
 -- this code is really unreadable, but it was written by just following the
 -- types and applying the DGS/runDGS and StM/unStM isomorphisms as necessary
@@ -69,28 +69,23 @@ instance FromJSON (Maybe DGSException) where
 			(_         , _ , _) -> pure . Just . UnknownVersion $ version
 	parseJSON v = typeMismatch "DGS response with version and error included" v
 
--- TODO: refactor so we don't have to explicitly pass a host to 'uri' (at the
--- cost of making things less modular)?
-
--- only call this with ASCII host and path parameters, please
-uri :: Server -> String -> Request m
-uri host_ path_ = def { host = S.pack host_, path = S.pack ('/':path_) }
-
-form :: Method -> (L.ByteString -> a) -> Request DGS -> [(String, String)] -> DGS a
-get  ::           (L.ByteString -> a) -> Request DGS -> [(String, String)] -> DGS a
-post ::           (L.ByteString -> a) -> Request DGS -> [(String, String)] -> DGS a
-form t f r_ q = do
-	manager <- asks snd
-	now     <- liftIO getCurrentTime
-	r       <- firstState (\cookies -> insertCookiesIntoRequest r_ { queryString = renderQuery False (toQuery q) } cookies now)
-	resp_   <- httpLbs r manager
-	now     <- liftIO getCurrentTime
-	resp    <- firstState ((\(a,b) -> (b,a)) . updateCookieJar resp_ r now)
-	return . f . responseBody $ resp
-	where firstState f = state (\(s1, s2) -> let (a, s1') = f s1 in (a, (s1', s2)))
-
-get  = form methodGet
-post = form methodPost
+-- boy, I sure do hope the path argument is ASCII
+get :: String -> [(String, String)] -> DGS L.ByteString
+get path query = do
+	(host, manager) <- ask
+	now             <- liftIO getCurrentTime
+	r               <- firstState (\cookies -> insertCookiesIntoRequest (r_ host) cookies now)
+	resp_           <- httpLbs r manager
+	now             <- liftIO getCurrentTime
+	resp            <- firstState ((\(a,b) -> (b,a)) . updateCookieJar resp_ r now)
+	return $ responseBody resp
+	where
+	firstState f = state (\(s1, s2) -> let (a, s1') = f s1 in (a, (s1', s2)))
+	r_ h = def
+		{ host        = h
+		, path        = S.pack ("/" <> path <> ".php")
+		, queryString = renderQuery False (toQuery query)
+		}
 
 instance FromJSON a => FromJSON (Maybe Quota, Either DGSException a) where
 	parseJSON v = do
@@ -106,8 +101,7 @@ getQuota   = gets snd
 setQuota q = modify (\(cookies, quota) -> (cookies, Just q))
 
 object obj cmd opts = do
-	server   <- asks fst
-	response <- get id (uri server "quick_do.php") (("obj",obj):("cmd",cmd):opts)
+	response <- get "quick_do" (("obj",obj):("cmd",cmd):opts)
 	case decode response of
 		Nothing     -> throwError (NoParse response)
 		Just (q, v) -> do

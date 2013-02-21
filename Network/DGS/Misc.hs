@@ -31,17 +31,13 @@ production  = "www.dragongoserver.net"
 login :: String -- ^ user name
       -> String -- ^ password
       -> DGS ()
-login username password = do
-	server <- asks fst
-	action <- get result (uri server "login.php") opts
-	action
-	where
+login username password = get "login" opts >>= result where
 	opts = [("quick_mode", "1"), ("userid", username), ("passwd", password)]
 
 	result bs = case B.concat . B.toChunks $ bs of
 		_ | bs == "\nOk"       -> return ()
 		(parseError -> Just e) -> throwError (DGSProblem e)
-		_ -> throwError (NoParse bs)
+		_                      -> throwError (NoParse bs)
 
 parseError s = findError <$> do
 	b <- stripPrefix "[#Error: " b_

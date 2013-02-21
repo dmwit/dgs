@@ -42,8 +42,8 @@ sgf :: ID GameTag
     -> Bool -- ^ request the private comments?
     -> Bool -- ^ for multiplayer games: include player info in each node? for other games: ignored
     -> DGS ByteString
-sgf (ID gid) comments playerInfo = do
-	server <- asks fst
-	get id (uri server "sgf.php") opts
-	where
-	opts = [("gid", show gid), ("owned_comments", show . fromEnum $ comments), ("mpg", show . fromEnum . not $ playerInfo)]
+sgf (ID gid) comments playerInfo = get "sgf"
+	[ ("gid"           , show                  $ gid       )
+	, ("owned_comments", show . fromEnum       $ comments  )
+	, ("mpg"           , show . fromEnum . not $ playerInfo)
+	]

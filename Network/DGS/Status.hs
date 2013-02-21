@@ -62,8 +62,7 @@ data Order = StatusPage | Arbitrary | LastMoved | MoveCount | Priority | TimeLef
 -- (usually a minute or so).
 quickStatus :: Order -> DGS Status
 quickStatus o = do
-	server   <- asks fst
-	response <- get id (uri server "quick_status.php") [("version","2"),("order",orderString)]
+	response <- get "quick_status" [("version","2"),("order",orderString)]
 	let strictResponse = strictify response
 	case (parseError strictResponse, parseOnly attoparse strictResponse) of
 		(Just e,  _) -> throwError (DGSProblem e)
