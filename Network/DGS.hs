@@ -32,18 +32,18 @@ import Network.DGS.Misc
 import Network.DGS.Game
 import Network.DGS.Monad
 
-gameInfo :: String -> ID GameTag -> DGS (Response (ID GameTag))
-gameInfo server (ID gid) = object "game" "info" [("gid", show gid)] server
+gameInfo :: ID GameTag -> DGS (ID GameTag)
+gameInfo (ID gid) = object "game" "info" [("gid", show gid)]
 
--- TODO: update this to take advantage of all the new multi-player game stuff
--- from the new specs.
---
 -- | you can only get private comments if you are logged in; if you are not
 -- logged in, this will succeed, but a request for private comments will be
 -- ignored, and you'll get an SGF with only the public comments
-sgf :: String  -- ^ server
-    -> Integer -- ^ game ID
-    -> Bool    -- ^ request the private comments?
+sgf :: ID GameTag
+    -> Bool -- ^ request the private comments?
+    -> Bool -- ^ for multiplayer games: include player info in each node? for other games: ignored
     -> DGS ByteString
-sgf server gid comments = get id (uri server "sgf.php") opts where
-    opts = [("gid", show gid), ("owned_comments", show . fromEnum $ comments)]
+sgf (ID gid) comments playerInfo = do
+	server <- asks fst
+	get id (uri server "sgf.php") opts
+	where
+	opts = [("gid", show gid), ("owned_comments", show . fromEnum $ comments), ("mpg", show . fromEnum . not $ playerInfo)]
