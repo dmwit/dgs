@@ -1,3 +1,4 @@
+{-# LANGUAGE EmptyDataDecls #-}
 module Network.DGS.User where
 
 import Data.Ratio

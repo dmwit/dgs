@@ -19,23 +19,41 @@ build-type:         Simple
 library
     exposed-modules:
                     Network.DGS,
-                    Network.DGS.Types,
-                    Network.DGS.Errors
+                    Network.DGS.Bulletin,
+                    Network.DGS.Errors,
+                    Network.DGS.Game,
+                    Network.DGS.Message,
+                    Network.DGS.Misc,
+                    Network.DGS.Monad,
+                    Network.DGS.Status,
+                    Network.DGS.Status.Bulletin,
+                    Network.DGS.Status.Game,
+                    Network.DGS.Status.Message,
+                    Network.DGS.Status.MultiplayerGame,
+                    Network.DGS.Time,
+                    Network.DGS.User
 
-    build-depends:  base >= 3 && < 5,
-                    mtl >= 1.1,
-                    http-types >= 0.7,
+    other-modules:
+                    Network.DGS.Status.Internal
+
+    build-depends:
+                    aeson,
+                    attoparsec,
+                    base >= 3 && < 5,
                     bytestring,
-                    http-conduit,
                     conduit,
-                    network,
-                    monad-control,
+                    http-conduit,
+                    http-types >= 0.7,
                     transformers-base,
-                    time,
-                    unordered-containers,
+                    monad-control,
+                    mtl >= 1.1,
+                    network,
                     old-locale,
+                    sgf,
+                    split,
                     text,
-                    aeson
+                    time,
+                    unordered-containers
 
 source-repository head
     type:       git

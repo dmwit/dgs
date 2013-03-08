@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE EmptyDataDecls, FlexibleInstances #-}
 module Network.DGS.Game where
 
 import Control.Applicative

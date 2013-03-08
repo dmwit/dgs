@@ -32,6 +32,7 @@ import Network.DGS.Misc
 import Network.DGS.Game
 import Network.DGS.Monad
 
+-- TODO
 gameInfo :: ID GameTag -> DGS (ID GameTag)
 gameInfo (ID gid) = object "game" "info" [("gid", show gid)]
 
