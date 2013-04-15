@@ -22,7 +22,6 @@ import System.Locale
 import qualified Control.Monad.Error        as E
 import qualified Data.ByteString.Char8      as S
 import qualified Data.ByteString.Lazy.Char8 as L
-import qualified Data.HashMap.Strict        as H
 import qualified Data.Text                  as T
 
 -- | a monad stack to ease the use of http-conduit
@@ -37,17 +36,22 @@ instance MonadBaseControl IO DGS where
 	liftBaseWith f = DGS (liftBaseWith (\g -> f (\(DGS m) -> StM <$> g m)))
 	restoreM (StM v) = DGS (restoreM v)
 
+-- | a wrapper that exists entirely for its 'FromJSON' instance
+newtype DGSTime = DGSTime { unDGSTime :: UTCTime } deriving (Eq, Ord, Show, Read)
+instance FromJSON DGSTime where
+	parseJSON (String s) = case parseTime defaultTimeLocale "%F %T" (T.unpack s) of
+		Just t  -> pure (DGSTime t)
+		Nothing -> fail $ "date in strange format: " ++ T.unpack s
+	parseJSON v = typeMismatch "date" v
+
 -- | how many accesses you have left, and when the quota will reset to its
 -- maximum
 data Quota = Quota Integer UTCTime deriving (Eq, Ord, Show, Read)
 
 instance FromJSON Quota where
-	parseJSON (Object v) = case H.lookup "quota_expire" v of
-		Just (String s) -> case parseTime defaultTimeLocale "%F %T" (T.unpack s) of
-			Just t  -> Quota <$> v .: "quota_count" <*> pure t
-			Nothing -> fail $ "quota expiration date in strange format: " ++ T.unpack s
-		Just s  -> typeMismatch "date" s
-		Nothing -> fail "quota expiration date missing"
+	parseJSON (Object v) = Quota
+		<$> v .: "quota_count"
+		<*> (unDGSTime <$> v .: "quota_expire")
 	parseJSON v = typeMismatch "DGS response with quota included" v
 
 data DGSException

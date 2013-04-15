@@ -2,6 +2,7 @@ module Network.DGS.Game where
 
 import Control.Applicative
 import Data.Aeson
+import Data.Int
 import Data.SGF.Types
 import Data.Text
 import Data.Time
@@ -64,8 +65,9 @@ data JigoMode
 	| NoJigo
 	deriving (Eq, Ord, Show, Read)
 
--- | The parameter will typically be 'Extra' or '()'.
-data Game a = Game
+-- | The parameters will be '()' or something interesting; the something
+-- interesting is 'MiniUser' for @miniUser@ and 'Rational' for @ratingDiff@.
+data Game miniUser ratingDiff = Game
 	{ this               :: ID GameTag
 	, double             :: DoubleGame
 	, tournament         :: Maybe (ID TournamentTag)
@@ -74,8 +76,8 @@ data Game a = Game
 	, hasHiddenMessages  :: Bool
 	, endedByAdmin       :: Bool
 	, score              :: Maybe GameResult -- ^ 'Nothing' for unfinished games
-	, rated              :: Bool
 	, style              :: Style
+	, rated              :: Bool
 	, ruleset            :: RuleSetGo        -- ^ 'Chinese' or 'Japanese'
 	, size               :: Integer
 	, komi               :: Rational
@@ -83,14 +85,16 @@ data Game a = Game
 	, handicap           :: Integer
 	, freePlacement      :: Bool
 	, shape              :: ID ShapeTag
-	, shapeSnapshot      :: Text             -- ^ don't really know what this is...
 	, start              :: UTCTime
 	, lastMove           :: UTCTime
 	, timeRunsOnWeekends :: Bool
 	, timeLimit          :: Limit
+	, protagonist        :: ID UserTag
+	, antagonist         :: ID UserTag
 	, move               :: (ID MoveTag, Maybe Point)
 	, nextPlayer         :: (Color, ID UserTag)
-	, ko                 :: Bool             -- ^ did the last move take a ko?
-	, black              :: GamePlayer a
-	, white              :: GamePlayer a
+	, priority           :: Int16            -- ^ this will be zero unless you ask for the games to be sorted by priority and specify that you want priorities to be loaded
+	, notes              :: Maybe Text
+	, black              :: GamePlayer miniUser ratingDiff
+	, white              :: GamePlayer miniUser ratingDiff
 	} deriving (Eq, Ord, Show)

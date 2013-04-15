@@ -1,5 +1,8 @@
 {-# LANGUAGE OverloadedStrings, ViewPatterns #-}
-module Network.DGS.Misc where
+module Network.DGS.Misc
+	( module Network.DGS.Misc
+	, DGSTime(..)
+	) where
 
 import Control.Applicative
 import Data.Aeson
@@ -7,6 +10,7 @@ import Data.Aeson.Types
 import Data.List
 import Data.List.Split
 import Data.Maybe
+import Data.Text
 import Network.DGS.Monad
 import Network.DGS.Errors
 import qualified Data.ByteString.Lazy  as B (toChunks)
@@ -54,3 +58,11 @@ newtype ID a = ID { getID :: Integer } deriving (Eq, Ord, Show, Read)
 instance FromJSON (ID a) where
 	parseJSON (Object v) = ID <$> v .: "id"
 	parseJSON v = typeMismatch "object with ID number" v
+
+newtype MaybeEmptyString a = MES { unMES :: Maybe a }
+instance FromJSON a => FromJSON (MaybeEmptyString a) where
+	parseJSON (String s) | s == "" = return (MES Nothing)
+	parseJSON o = MES . Just <$> parseJSON o
+
+(.?) :: FromJSON a => Object -> Text -> Parser (Maybe a)
+o .? t = unMES <$> o .: t
