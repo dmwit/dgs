@@ -11,6 +11,7 @@ import Data.List
 import Data.List.Split
 import Data.Maybe
 import Data.Text
+import Network.DGS.Atto
 import Network.DGS.Monad
 import Network.DGS.Errors
 import qualified Data.ByteString.Lazy  as B (toChunks)
@@ -55,6 +56,7 @@ parseError s = findError <$> do
 -- tournament IDs, move IDs, user IDs, etc.
 newtype ID a = ID { getID :: Integer } deriving (Eq, Ord, Show, Read)
 
+instance Atto     (ID a) where attoparse = ID <$> natural
 instance FromJSON (ID a) where
 	parseJSON (Object v) = ID <$> v .: "id"
 	parseJSON v = typeMismatch "object with ID number" v

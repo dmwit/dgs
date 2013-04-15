@@ -1,14 +1,17 @@
-module Network.DGS.Game where
+{-# LANGUAGE LambdaCase #-}
+module Network.DGS.Game (module Network.DGS.Game, Int16) where
 
 import Control.Applicative
 import Data.Aeson
 import Data.Int
-import Data.SGF.Types
+import Data.SGF.Types (Color, GameResult, Point, RuleSetGo)
 import Data.Text
 import Data.Time
+import Network.DGS.Atto
 import Network.DGS.Misc
 import Network.DGS.Time
 import Network.DGS.User
+import qualified Data.ByteString.Char8 as C
 
 -- | for use with 'ID'
 data GameTag
@@ -43,6 +46,21 @@ data Action
 	| Wait
 	deriving (Eq, Ord, Show, Read, Bounded, Enum)
 
+instance Atto Action where
+	attoparse = attoparse >>= \case
+		0  -> return Unsupported
+		1  -> return PlaceHandicap
+		2  -> return Move
+		3  -> return Score
+		10 -> return Bid
+		11 -> return BidOrAccept
+		12 -> return ChooseColor
+		13 -> return Wait
+		n  -> fail
+		   $  "expecting one of the known action codes (0-3 or 10-13), but got "
+		   ++ show (n :: Integer)
+		   ++ " instead"
+
 data Status
 	= Komi
 	| Setup
@@ -53,11 +71,37 @@ data Status
 	| Finished
 	deriving (Eq, Ord, Show, Read, Bounded, Enum)
 
+instance Atto Status where
+	attoparse = choice
+		[ "KOMI"   --> Komi
+		, "PLAY"   --> Play
+		, "PASS"   --> Pass
+		-- SCORE2 must come before SCORE so that SCORE doesn't succeed and commit!
+		, "SCORE2" --> Scoring2
+		, "SCORE"  --> Scoring
+		]
+
 data Style
 	= Plain
 	| Zen Integer
 	| Team Integer Integer
 	deriving (Eq, Ord, Show, Read)
+
+instance Atto Style where
+	attoparse = go <|> teamGo <|> zenGo where
+		go     = string (C.pack "GO") >> return Plain
+		teamGo = do
+			string (C.pack "TEAM_GO(")
+			n <- natural
+			word8 (enum ':')
+			m <- natural
+			word8 (enum ')')
+			return (Team n m)
+		zenGo  = do
+			string (C.pack "ZEN_GO(")
+			n <- natural
+			word8 (enum ')')
+			return (Zen n)
 
 data JigoMode
 	= KeepKomi

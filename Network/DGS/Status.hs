@@ -9,12 +9,9 @@ module Network.DGS.Status
 import Data.Attoparsec as A
 import Data.ByteString as B
 import Data.ByteString.Lazy as B (toChunks)
-import Data.List
-import Data.Monoid
-import Network.DGS.Monad
 import Network.DGS.Status.Bulletin
 import Network.DGS.Status.Game
-import Network.DGS.Status.Internal
+import Network.DGS.Status.Imports hiding (Status)
 import Network.DGS.Status.Message
 import Network.DGS.Status.MultiplayerGame
 

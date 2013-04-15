@@ -34,7 +34,8 @@ library
                     Network.DGS.User
 
     other-modules:
-                    Network.DGS.Status.Internal
+                    Network.DGS.Atto
+                    Network.DGS.Status.Imports
 
     build-depends:
                     aeson,

@@ -1,8 +1,6 @@
 module Network.DGS.Status.MultiplayerGame where
 
-import Data.SGF.Types
-import Network.DGS.Game hiding (Game(..))
-import Network.DGS.Status.Internal
+import Network.DGS.Status.Imports
 
 data MultiplayerGame = MultiplayerGame
 	{ gid         :: ID GameTag
@@ -12,11 +10,6 @@ data MultiplayerGame = MultiplayerGame
 	, lastChanged :: UTCTime
 	, ready       :: Bool
 	} deriving (Eq, Ord, Show, Read)
-
-instance Atto Bool where
-	attoparse = "0" --> False <|> "1" --> True
-instance Atto RuleSetGo where
-	attoparse = "CHINESE" --> Chinese <|> "JAPANESE" --> Japanese
 
 -- TODO: test this...?
 instance Atto MultiplayerGame where

@@ -7,14 +7,19 @@ import Data.Aeson.Types
 import Data.Ratio
 import Data.SGF.Types hiding (round)
 import Data.Text
+import Data.Text.Encoding
 import Data.Text.Read
 import Data.Time
+import Network.DGS.Atto
 import Network.DGS.Misc
 import Network.DGS.Time
 
 -- | Specifically for strings that happen to be users' nicknames.
 newtype Nick = Nick { getNick :: Text } deriving (Eq, Ord, Show, Read)
 
+-- nicks can only contain a-z, A-Z, 0-9, and -_+, which are pretty
+-- much the same in all encodings, so just take a stab at one
+instance Atto Nick where attoparse = Nick . decodeUtf8 <$> quotedField
 instance FromJSON Nick where
 	parseJSON (String t) = return (Nick t)
 	parseJSON v = typeMismatch "string" v

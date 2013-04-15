@@ -1,8 +1,6 @@
 module Network.DGS.Status.Message where
 
-import Network.DGS.User
-import Network.DGS.Message
-import Network.DGS.Status.Internal
+import Network.DGS.Status.Imports
 
 data Category
 	= Normal     -- ^ standard private message

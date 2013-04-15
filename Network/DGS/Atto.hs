@@ -1,22 +1,19 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
-module Network.DGS.Status.Internal
+module Network.DGS.Atto
 	( module Control.Applicative
 	, module Data.Attoparsec
-	, module Data.Time
-	, module Network.DGS.Misc
-	, module Network.DGS.Status.Internal
+	, module Network.DGS.Atto
 	, ByteString
 	) where
 
 import Control.Applicative
-import Data.Attoparsec
+import Data.Attoparsec hiding (Parser)
 import Data.Attoparsec as A
 import Data.ByteString (ByteString)
-import Data.Text.Encoding
+import Data.Int
+import Data.Ix
+import Data.SGF.Types (Color(..), RuleSetGo(..))
 import Data.Time
-import Network.DGS.Game (Style(..))
-import Network.DGS.Misc
-import Network.DGS.User
 import System.Locale
 import qualified Data.ByteString.Char8 as C
 import qualified Data.ByteString       as W
@@ -52,9 +49,20 @@ natural = digits2Integer <$> takeWhile1 isDigit where
 
 column = comma >> attoparse
 
-class Atto a where attoparse :: Parser a
-instance Atto (ID a)  where attoparse = ID <$> natural
+bracketed s e p = do
+	word8 (enum s)
+	v <- p
+	word8 (enum e)
+	return v
+
+parenthesized = bracketed '(' ')'
+quoted        = bracketed '\'' '\''
+
+class Atto a where attoparse :: A.Parser a
 instance Atto Integer where attoparse = integral
+
+instance Atto Int16 where
+	attoparse = attoparse >>= \n -> if inRange (-32768,32767) n then return (fromInteger n) else fail $ "number out of range for an Int16: " ++ show n
 
 instance Atto UTCTime where
 	attoparse = do
@@ -63,22 +71,6 @@ instance Atto UTCTime where
 			Just  t -> return t
 			Nothing -> fail $ "couldn't parse date " ++ C.unpack contents
 
--- nicks can only contain a-z, A-Z, 0-9, and -_+, which are pretty
--- much the same in all encodings, so just take a stab at one
-instance Atto Nick where attoparse = Nick . decodeUtf8 <$> quotedField
-
-instance Atto Style where
-	attoparse = go <|> teamGo <|> zenGo where
-		go     = string (C.pack "GO") >> return Plain
-		teamGo = do
-			string (C.pack "TEAM_GO(")
-			n <- natural
-			word8 (enum ':')
-			m <- natural
-			word8 (enum ')')
-			return (Team n m)
-		zenGo  = do
-			string (C.pack "ZEN_GO(")
-			n <- natural
-			word8 (enum ')')
-			return (Zen n)
+instance Atto Bool      where attoparse = "0"       --> False   <|> "1"        --> True
+instance Atto Color     where attoparse = "B"       --> Black   <|> "W"        --> White
+instance Atto RuleSetGo where attoparse = "CHINESE" --> Chinese <|> "JAPANESE" --> Japanese

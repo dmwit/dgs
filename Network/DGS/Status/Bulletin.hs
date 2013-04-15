@@ -1,7 +1,6 @@
 module Network.DGS.Status.Bulletin where
 
-import Network.DGS.Bulletin
-import Network.DGS.Status.Internal hiding (count)
+import Network.DGS.Status.Imports hiding (count, All(..))
 
 -- | who is this bulletin shown to?
 data TargetType
